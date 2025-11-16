@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance History</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 2rem auto;
+      padding: 1rem 2rem;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: #2c3e50;
+    }
+    .filters, .actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    input, select, button {
+      padding: 0.5rem;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      cursor: pointer;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    th {
+      background: #ecf0f1;
+    }
+    .back-link {
+      display: inline-block;
+      margin-top: 1rem;
+      text-align: center;
+      color: #3498db;
+      text-decoration: none;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    #deleteButton{
+      background:#e74c3c;
+    }
+    @media print {
+      .filters, .actions, .back-link {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Attendance History</h1>
+
+    <div class="filters">
+      <label for="filterDate">date</label>
+      <input type="date" id="filterDate">
+      <input type="text" id="filterCourse" placeholder="Course">
+      <button onclick="loadHistory()">Search</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Course</th>
+            <th>Action</th>
+
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Filled dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button onclick="downloadHistory()">⬇️ Download Excel</button>
+      <button onclick="exportPDF()">📄 Export PDF</button>
+      <button onclick="window.print()">🖨️ Print</button>
+      <button onclick="deleteHistory()" id="deleteButton">🗑️ Delete All History</button>
+    </div>
+
+    <p><a class="back-link" href="{{ url_for('home') }}">⬅️ Back</a></p>
+  </div>
+
+<script>
+const socket = io(); // connect to Socket.IO server
+
+// ---------------- Load attendance ----------------
+async function loadHistory(){
+  const date = document.getElementById('filterDate').value;
+  const course = document.getElementById('filterCourse').value.trim();
+
+  let url = `/history_by_date?date=${encodeURIComponent(date)}&course=${encodeURIComponent(course)}`;
+  try {
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Failed to fetch');
+    const data = await res.json();
+
+    renderTable(data);
+  } catch (err){
+    alert('Error loading data: ' + err.message);
+  }
+}
+
+function renderTable(data){
+  const tbody = document.querySelector('#historyTable tbody');
+  tbody.innerHTML = '';
+  if(data.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No records found</td></tr>';
+    return;
+  }
+
+  data.forEach(r => {
+    const tr = document.createElement('tr');
+   tr.innerHTML = `
+  <td>${r.ID}</td>
+  <td>${r.Name}</td>
+  <td>${r.Date}</td>
+  <td>${r.Time}</td>
+  <td>${r.Course}</td>
+  <td>
+    <button onclick="deleteRecord('${r.ID}', '${r.Date}', '${r.Time}', this)" 
+            style="background:#e74c3c;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;">
+      Delete
+    </button>
+  </td>
+`;
+    tbody.appendChild(tr);
+  });
+}
+
+
+// ---------------- Download Excel ----------------
+function downloadHistory(){
+  const table = document.getElementById('historyTable');
+  if(!table) return alert('No data to download');
+
+  const wb = XLSX.utils.table_to_book(table);
+  const date = document.getElementById('filterDate').value || 'all';
+  const course = document.getElementById('filterCourse').value.trim() || 'all';
+  XLSX.writeFile(wb, `attendance_${course}_${date}.xlsx`);
+}
+
+// ---------------- Delete all history ----------------
+async function deleteHistory(){
+  if(!confirm("Are you sure you want to delete all attendance history? This cannot be undone.")) return;
+  try {
+    const res = await fetch('/delete_history', { method: 'POST' });
+    const data = await res.json();
+    alert(data.message);
+    loadHistory();
+  } catch (err){
+    alert('Error deleting history: ' + err.message);
+  }
+}
+
+async function deleteRecord(id, btn){
+  if(!confirm("Delete this record?")) return;
+
+  try {
+    const res = await fetch(`/delete_record/${id}`, { method: 'POST' });
+    const result = await res.json();
+
+    if(result.success){
+      const row = btn.closest('tr');
+      row.remove();
+    } else {
+      alert("Failed to delete record");
+    }
+  } catch(err){
+    alert("Error: " + err.message);
+  }
+}
+
+async function deleteRecord(studentID, date, time, btn){
+  if(!confirm("Delete this record?")) return;
+
+  const res = await fetch('/delete_record', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ID: studentID, Date: date, Time: time })
+  });
+
+  const result = await res.json();
+  if(result.success){
+    btn.closest('tr').remove();
+  } else {
+    alert("Failed to delete record");
+  }
+}
+
+async function exportPDF(){
+  // Read current filters (same as used in loadHistory)
+  const date = document.getElementById('filterDate').value || '';
+  const course = document.getElementById('filterCourse').value.trim() || '';
+
+  // Optional confirm for very large exports (remove if not needed)
+  // if(!confirm("Export current filtered records to PDF?")) return;
+
+  try {
+    const res = await fetch('/export_pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, course })
+    });
+
+    if(!res.ok) {
+      const text = await res.text();
+      throw new Error('Server error: ' + text);
+    }
+
+    const blob = await res.blob();
+    // build filename like attendance_general_2025-10-29.pdf or attendance_all_all.pdf
+    const datePart = date || 'all';
+    const coursePart = course || 'all';
+    const filename = `attendance_${coursePart}_${datePart}.pdf`;
+
+    // create download link and click it
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+  } catch (err){
+    alert('Failed to export PDF: ' + err.message);
+  }
+}
+
+
+// ---------------- Real-time updates ----------------
+socket.on('new_attendance', (record) => {
+  const tbody = document.querySelector('#historyTable tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${record.ID}</td><td>${record.Name}</td><td>${record.Date}</td><td>${record.Time}</td><td>${record.Course}</td>`;
+  tbody.appendChild(tr);
+});
+
+// ---------------- Initial load ----------------
+loadHistory();
+</script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Scanner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <style>
+    .muted { color: gray; }
+
+    /* ✅ Success animation */
+    .success {
+      color: green;
+      font-weight: bold;
+      animation: fadeInOut 2s ease-in-out;
+    }
+
+    /* ❌ Error animation */
+    .error {
+      color: red;
+      font-weight: bold;
+      animation: shake 0.4s ease-in-out, fadeInOut 2s ease-in-out;
+    }
+
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: scale(0.9); }
+      10% { opacity: 1; transform: scale(1.05); }
+      90% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.9); }
+    }
+
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-4px); }
+      100% { transform: translateX(0); }
+    }
+
+    /* 🌙 Theme toggle button styling */
+    #theme-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: var(--button-bg, #ddd);
+      color: var(--button-text, #000);
+      border: none;
+      padding: 10px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      z-index: 1000;
+    }
+
+    [data-theme="dark"] #theme-toggle {
+      --button-bg: #222;
+      --button-text: #fff;
+    }
+  </style>
+</head>
+<body>
+  <!-- 🌗 Theme Toggle -->
+  <button id="theme-toggle" class="theme-toggle">🌞 Light Mode</button>
+
+  <div class="container">
+    <h1>QR Scanner</h1>
+    <div id="reader"></div>
+    <div id="result" class="muted">Ready to scan...</div>
+    <p><a href="{{ url_for('home') }}">Back</a></p>
+
+    <!-- 🎵 Audio for success -->
+    <audio id="success-sound" preload="auto">
+      <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    </audio>
+
+    <!-- ❌ Audio for error -->
+    <audio id="error-sound" preload="auto">
+      <source src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" type="audio/ogg">
+    </audio>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const resultDiv = document.getElementById('result');
+  const successSound = document.getElementById('success-sound');
+  const errorSound = document.getElementById('error-sound');
+  const reader = new Html5Qrcode("reader");
+
+  // 🌙 THEME HANDLER
+  const toggle = document.getElementById('theme-toggle');
+  const currentTheme = localStorage.getItem('theme');
+  if (currentTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    toggle.textContent = '🌙 Dark Mode';
+  }
+
+  toggle.addEventListener('click', () => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    if (theme === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+      toggle.textContent = '🌞 Light Mode';
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      toggle.textContent = '🌙 Dark Mode';
+      localStorage.setItem('theme', 'dark');
+    }
+  });
+
+  // ✅ QR SCANNER LOGIC
+  async function startScanner() {
+    try {
+      await reader.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        onScanSuccess,
+        () => {}
+      );
+    } catch (err) {
+      resultDiv.innerHTML = '<p style="color:red">Camera access denied or not available.</p>';
+      console.error(err);
+    }
+  }
+
+  async function onScanSuccess(decodedText) {
+    await reader.stop();
+    resultDiv.innerHTML = `<p>Scanned: ${decodedText}</p>`;
+
+    // ✅ include course name from localStorage (set when admin picks course)
+    const course = localStorage.getItem("currentCourse") || "";
+
+    try {
+      const response = await fetch('{{ url_for("mark_attendance") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: decodedText, course: course })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        errorSound.currentTime = 0;
+        errorSound.play();
+        resultDiv.innerHTML += `<p class="error">${data.message || 'Failed to mark attendance.'}</p>`;
+      } else {
+        // iterate messages array
+        data.messages.forEach(msg => {
+          if (msg.toLowerCase().includes("already")) {
+            errorSound.currentTime = 0;
+            errorSound.play();
+            resultDiv.innerHTML += `<p class="error">${msg}</p>`;
+          } else {
+            successSound.currentTime = 0;
+            successSound.play();
+            resultDiv.innerHTML += `<p class="success">${msg}</p>`;
+          }
+        });
+      }
+
+    } catch (error) {
+      console.error(error);
+      errorSound.currentTime = 0;
+      errorSound.play();
+      resultDiv.innerHTML += '<p class="error">Failed to send attendance.</p>';
+    }
+
+    // 🔁 Restart scanning after 2 seconds
+    setTimeout(() => {
+      resultDiv.innerHTML = '<p class="muted">Ready for next scan...</p>';
+      startScanner();
+    }, 2000);
+  }
+
+  startScanner();
+});
+
+
+</script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+/* ========================================
+   🌫️ GLASSMORPHISM THEME VARIABLES (LIGHT)
+======================================== */
+:root {
+  --bg: linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%);
+  --card-bg: rgba(255, 255, 255, 0.25);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: #3b82f6;
+  --muted: #e5e7eb;
+  --text: #0f172a;
+  --error: #b91c1c;
+  --radius: 14px;
+  --blur: 20px;
+  --transition: 0.3s ease;
+  --shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
+  --border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* ========================================
+   🌙 DARK MODE THEME VARIABLES
+======================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    --card-bg: rgba(15, 23, 42, 0.45);
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --accent-light: #93c5fd;
+    --muted: #475569;
+    --text: #f1f5f9;
+    --error: #f87171;
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ========================================
+   🔧 GLOBAL RESETS
+======================================== */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: background var(--transition), color var(--transition);
+  -webkit-transition: background var(--transition), color var(--transition);
+  -moz-transition: background var(--transition), color var(--transition);
+}
+
+/* ========================================
+   🧱 CONTAINER (Glass Card)
+======================================== */
+.container {
+  width: 100%;
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 32px;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: var(--border);
+  box-shadow: var(--shadow);
+  transition: all var(--transition);
+}
+.container:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.25);
+}
+
+/* ========================================
+   🏷️ HEADINGS
+======================================== */
+h1, h2, h3 {
+  margin-top: 0;
+  color: var(--accent);
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+  position: relative;
+}
+
+h1::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 50px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+h1:hover::after {
+  width: 100%;
+}
+/* ========================================
+   🌗 THEME TOGGLE BUTTON
+======================================== */
+.theme-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.35);
+  color: var(--text);
+  border: var(--border);
+  border-radius: 50px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all var(--transition);
+  z-index: 1000;
+}
+.theme-toggle:hover {
+  background: var(--accent);
+  color: #fff;
+  transform: translateY(-2px);
+}
+#reader{
+  width:350px;margin:auto
+}
+
+/* ========================================
+   🔘 BUTTONS
+======================================== */
+.buttons{
+  margin-top: 18px;
+}
+
+button{
+  background: linear-gradient(135deg, var(--accent-light), var(--accent));
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  margin: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: all var(--transition);
+}
+button,a:hover {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.4);
+}
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.3);
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ========================================
+   🧩 FORM INPUTS
+======================================== */
+input[type="text"],
+input[type="password"],
+input[type="date"],
+select {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
+  color: var(--text);
+  width: 100%;
+  max-width: 360px;
+  margin: 8px 0;
+  font-size: 0.95rem;
+  transition: all var(--transition);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+input::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+  }
+}
+input:focus,
+select:focus {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  outline: none;
+}
+
+/* ========================================
+   🧰 CONTROL WRAPPER
+======================================== */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+/* ========================================
+   📊 TABLE (Glass Effect)
+======================================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.25);
+  border: var(--border);
+  transition: all var(--transition);
+}
+@media (prefers-color-scheme: dark) {
+  table {
+    background: rgba(15, 23, 42, 0.35);
+  }
+}
+
+th, td {
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--text);
+}
+
+th {
+  background: rgba(37, 99, 235, 0.8);
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+tr:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transition: background var(--transition);
+}
+@media (prefers-color-scheme: dark) {
+  tr:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ========================================
+   ⚠️ ERROR MESSAGE
+======================================== */
+.error-message {
+  color: var(--error);
+  font-weight: 500;
+  margin-top: 8px;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+/* ========================================
+   🖨️ PRINT STYLES (Paper Safe)
+======================================== */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .container {
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+  button, .buttons {
+    display: none !important;
+  }
+  table {
+    background: #fff !important;
+  }
+}
+
+/* ========================================
+   📱 RESPONSIVE DESIGN
+======================================== */
+@media (max-width: 768px) {
+  .container {
+    padding: 20px;
+  }
+  button {
+    width: 100%;
+  }
+  input,
+  select {
+    max-width: 100%;
+  }
+}
+/* ========================================
+   🌙 MANUAL DARK THEME OVERRIDE
+======================================== */
+
+:root[data-theme="dark"] {
+  --bg: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+  --card-bg: rgba(15, 23, 42, 0.45);
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-light: #93c5fd;
+  --muted: #475569;
+  --text: #f1f5f9;
+  --error: #f87171;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ========================================
+   🧩 DASHBOARD GRID LAYOUT (Responsive)
+======================================== */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  max-width: 1300px;
+  margin: 30px auto;
+  padding: 0 20px;
+}
+
+/* Stack vertically on small screens */
+@media (max-width: 900px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Make charts responsive */
+canvas {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 350px;
+  display: block;
+}

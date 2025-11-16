@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate QR</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <style>
+    /* 🎨 Basic layout */
+    .container {
+      max-width: 400px;
+      margin: 40px auto;
+      text-align: center;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1em;
+    }
+
+    button {
+      background: var(--button-bg, #007bff);
+      color: var(--button-text, #fff);
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.3s ease;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    #result p {
+      margin-top: 10px;
+      font-size: 1.1em;
+      font-weight: 500;
+    }
+
+    /* ✅ Message styles */
+    .success { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; }
+
+    /* 🌙 Theme Toggle */
+    #theme-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: var(--button-bg, #ddd);
+      color: var(--button-text, #000);
+      border: none;
+      padding: 10px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      z-index: 1000;
+    }
+
+    [data-theme="dark"] #theme-toggle {
+      --button-bg: #222;
+      --button-text: #fff;
+    }
+
+    [data-theme="dark"] body {
+      background-color: #111;
+      color: #eee;
+    }
+
+    [data-theme="dark"] input {
+      background: #222;
+      color: #fff;
+      border: 1px solid #444;
+    }
+  </style>
+</head>
+<body>
+  <!-- 🌗 Theme Toggle -->
+  <button id="theme-toggle" class="theme-toggle">🌞 Light Mode</button>
+
+  <div class="container">
+    <h1>Generate QR Code</h1>
+    <form id="genForm" onsubmit="event.preventDefault(); generateQR();">
+      <input type="text" id="studentId" placeholder="Student ID (e.g. KASU/SCE/23/CSC/0001)" required>
+      <input type="text" id="studentName" placeholder="Full Name" required>
+      <button type="submit" id="genBtn">Generate</button>
+    </form>
+    <div id="result" class="muted">Enter details and generate your QR code.</div>
+    <p><a href="{{ url_for('home') }}">Back</a></p>
+  </div>
+
+  <script>
+  // 🌙 THEME HANDLER
+  const toggle = document.getElementById('theme-toggle');
+  const currentTheme = localStorage.getItem('theme');
+  if (currentTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    toggle.textContent = '🌙 Dark Mode';
+  }
+
+  toggle.addEventListener('click', () => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    if (theme === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+      toggle.textContent = '🌞 Light Mode';
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      toggle.textContent = '🌙 Dark Mode';
+      localStorage.setItem('theme', 'dark');
+    }
+  });
+
+  // ✅ QR GENERATION LOGIC
+  async function generateQR() {
+    const id = document.getElementById('studentId').value.trim();
+    const name = document.getElementById('studentName').value.trim();
+    const resultDiv = document.getElementById('result');
+    const btn = document.getElementById('genBtn');
+
+    if (!id || !name) return alert("Please fill all fields.");
+
+    btn.disabled = true;
+    btn.textContent = "Generating...";
+
+    try {
+      const res = await fetch('{{ url_for("generate_qr") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name })
+      });
+
+      const data = await res.json();
+
+      if (data.qr_path) {
+        resultDiv.innerHTML = `
+          <p class="success">${data.message}</p>
+          <img src="${data.qr_path}" alt="QR" style="width:200px;margin-top:10px;">
+          <p><a href="${data.qr_path}" download>⬇️ Download QR</a></p>
+        `;
+      } else {
+        resultDiv.innerHTML = `<p class="error">${data.message || 'Error generating QR.'}</p>`;
+      }
+    } catch (err) {
+      console.error(err);
+      resultDiv.innerHTML = `<p class="error">Server error. Try again later.</p>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = "Generate";
+  }
+  </script>
+</body>
+</html>

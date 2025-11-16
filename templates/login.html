@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
+  <style>
+    /* ✅ Default Light Mode */
+    :root[data-theme='light'] {
+      --bg-color: #ffffff;
+      --text-color: #111111;
+      --btn-bg: #007bff;
+      --btn-text: #ffffff;
+    }
+    :root[data-theme='dark'] {
+      --bg-color: #111111;
+      --text-color: #ffffff;
+      --btn-bg: #444444;
+      --btn-text: #ffffff;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.3s, color 0.3s;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      max-width: 350px;
+      margin: 100px auto;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    }
+    input, button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+    button[type="submit"] {
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border: none;
+      cursor: pointer;
+    }
+    button[type="submit"]:hover { opacity: 0.95; }
+    .theme-toggle {
+      position: fixed;
+      width: 200px;
+      top: 15px;
+      right: 15px;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border: none;
+      padding: 10px 12px;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+      font-size: 14px;
+    }
+    .error-message { color: red; margin-top: 10px; }
+    .link-row { display:flex; gap:8px; justify-content:center; margin-top:12px; }
+    .link-row a { text-decoration:none; color:var(--btn-bg); font-weight:600; }
+  </style>
+</head>
+<body>
+  <button id="theme-toggle" class="theme-toggle">🌙 Dark Mode</button>
+
+  <div class="container">
+     <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="kasu_logo" width="100px" height="100px" id="kasu_image">
+    <h1>Login</h1>
+    <form method="post" action="{{ url_for('login') }}">
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+    {% if error %}<p class="error-message">{{ error }}</p>{% endif %}
+
+    <div class="link-row">
+      <button onclick="location.href='{{ url_for('generate') }}'">Open generator page</button>
+    
+    </div>
+
+    <p style="margin-top:14px;">&copy; 2025 | Design by Codex CyberSquad </p>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggle = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    toggle.textContent = savedTheme === 'dark' ? '🌞 Light Mode' : '🌙 Dark Mode';
+
+    toggle.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      toggle.textContent = next === 'dark' ? '🌞 Light Mode' : '🌙 Dark Mode';
+    });
+  });
+  </script>
+</body>
+</html>

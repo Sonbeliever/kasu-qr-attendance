@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Attendance Home</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<style>
+  /* 🌞 Light Mode (default) */
+  :root[data-theme='light'] {
+    --bg-color: #ffffff;
+    --text-color: #111111;
+    --btn-bg: #007bff;
+    --btn-text: #ffffff;
+    --card-bg: #f8f8f8;
+    --chart-color: #2196F3;
+  }
+
+  /* 🌙 Dark Mode */
+  :root[data-theme='dark'] {
+    --bg-color: #111111;
+    --text-color: #ffffff;
+    --btn-bg: #444444;
+    --btn-text: #ffffff;
+    --card-bg: #1e1e1e;
+    --chart-color: #90CAF9;
+  }
+
+  body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: Arial, sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  .container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 20px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    text-align: center;
+  }
+
+  input, select, button {
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    width: 100%;
+    font-size: 15px;
+  }
+
+  button {
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s;
+  }
+
+  button:hover { opacity: 0.9; }
+
+  .theme-toggle {
+    width: 200px;
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border: none;
+    padding: 10px 12px;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    font-size: 14px;
+  }
+
+  .buttons button {
+    margin-top: 10px;
+  }
+
+  .card {
+    padding: 15px;
+    margin-bottom: 20px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  canvas {
+    display: block;
+    margin: 20px auto;
+    max-width: 100%;
+    height: 300px;
+  }
+
+  #loading {
+    text-align: center;
+    color: gray;
+    padding: 10px;
+    display: none;
+  }
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  padding: 20px;
+}
+@media (max-width: 768px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+h3{
+margin-top:50px;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body>
+  <button id="theme-toggle" class="theme-toggle">🌙 Dark Mode</button>
+<div class="main-grid">
+  <div class="container">
+    <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="kasu_logo" width="100" height="100" id="kasu_image">
+    <h1>Welcome, {{ session.get('user','Guest')|capitalize }}</h1>
+    <p>Role: {{ session.get('role','')|capitalize }}</p>
+
+    {% if session.get('role') == 'admin' %}
+    <div class="card">
+      <h3>Start Attendance (Admin)</h3>
+      <form id="courseForm" onsubmit="event.preventDefault(); setCourse();">
+        <input type="text" id="courseName" placeholder="Course name (leave blank for general)">
+        <label for="mode">📘 Mode</label>
+        <select id="mode">
+          <option value="general">General Attendance</option>
+          <option value="course">Course Attendance</option>
+        </select>
+        <button type="submit">Set Course</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="buttons">
+      {% if session.get('role')=='admin' %}
+        <button onclick="location.href='{{ url_for('generate') }}'">Generate QR</button>
+        <button onclick="location.href='{{ url_for('history') }}'">View History</button>
+      {% endif %}
+      <button onclick="location.href='{{ url_for('scan') }}'">Scan Attendance</button>
+      <button onclick="location.href='{{ url_for('my_attendance') }}'">My Attendance</button>
+      <button onclick="location.href='{{ url_for('logout') }}'">Logout</button>
+      <hr>
+      <button onclick="location.href='{{ url_for('change_password') }}'">Change Password</button>
+    </div>
+
+    <p>&copy; 2025 | Design by Codex CyberSquad</p>
+  </div>
+
+  <div class="container">
+    <h3>📊 Student Attendance Performance</h3>
+    <div id="loading">Loading charts...</div>
+    <canvas id="performanceChart"></canvas>
+
+    <h3 >📈 Average Attendance by Course</h3>
+    <canvas id="courseChart"></canvas>
+  </div>
+  </div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+let performanceChart, courseChart;
+
+// 🟢 Live update indicator element
+const liveIndicator = document.createElement("div");
+liveIndicator.id = "live-indicator";
+liveIndicator.style.cssText = `
+  position: fixed; top: 10px; right: 15px; background: #4CAF50;
+  color: white; padding: 6px 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; display: none; z-index: 1000;
+`;
+liveIndicator.textContent = "🟢 Live Update";
+document.body.appendChild(liveIndicator);
+
+// Utility to blink live indicator
+function blinkLiveIndicator() {
+  liveIndicator.style.display = "block";
+  setTimeout(() => (liveIndicator.style.display = "none"), 2500);
+}
+
+// 🎨 Theme color getter
+function getChartColor() {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue("--chart-color")
+    .trim();
+}
+
+// 📊 Load individual performance chart
+async function loadPerformanceChart() {
+  document.getElementById("loading").style.display = "block";
+  try {
+    const res = await fetch("/api/performance");
+    if (!res.ok) throw new Error("Server error");
+    const data = await res.json();
+
+    const labels = data.map((d) => `${d.student_id} (${d.course})`);
+    const values = data.map((d) => d.attendance_percent);
+    const colors = data.map((d) => (d.eligible ? "#4CAF50" : "#F44336"));
+
+    const ctx = document.getElementById("performanceChart").getContext("2d");
+
+    if (performanceChart) {
+      // Update existing chart for smoother transition
+      performanceChart.data.labels = labels;
+      performanceChart.data.datasets[0].data = values;
+      performanceChart.data.datasets[0].backgroundColor = colors;
+      performanceChart.update("active");
+    } else {
+      performanceChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Attendance (%)",
+              data: values,
+              backgroundColor: colors,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: "Student Attendance Percentage (Green = Eligible, Red = <70%)",
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const s = data[ctx.dataIndex];
+                  return `${s.matric_no} - ${s.course}: ${s.attendance_percent}% (${
+                    s.eligible ? "Eligible" : "Not Eligible"
+                  })`;
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: "Attendance Percentage (%)" },
+            },
+          },
+        },
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    alert("⚠️ Failed to load performance chart.");
+  } finally {
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+// 📈 Load average course chart
+async function loadCourseChart() {
+  try {
+    const res = await fetch("/api/course_average");
+    if (!res.ok) throw new Error("Server error");
+    const data = await res.json();
+
+    const labels = data.map((d) => d.course);
+    const values = data.map((d) => d.avg_attendance);
+
+    const ctx = document.getElementById("courseChart").getContext("2d");
+
+    if (courseChart) {
+      courseChart.data.labels = labels;
+      courseChart.data.datasets[0].data = values;
+      courseChart.update("active");
+    } else {
+      courseChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Average Attendance (%)",
+              data: values,
+              backgroundColor: getChartColor(),
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: "Average Attendance Rate by Course",
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+            },
+          },
+        },
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    alert("⚠️ Failed to load course chart.");
+  }
+}
+
+// 🔄 Real-time updates via Socket.IO
+const socket = io();
+
+socket.on("connect", () => {
+  console.log("✅ Connected to live attendance server");
+});
+
+socket.on("disconnect", () => {
+  console.log("⚠️ Disconnected from live server");
+});
+
+// When new attendance is recorded
+socket.on("attendance_update", (data) => {
+  console.log("🔄 Attendance update received:", data);
+  blinkLiveIndicator();
+  loadPerformanceChart();
+  loadCourseChart();
+});
+
+// When course/session changes
+socket.on("course_changed", (data) => {
+  console.log("📚 Course changed:", data);
+  blinkLiveIndicator();
+  loadPerformanceChart();
+  loadCourseChart();
+});
+
+// Optional: refresh personal view if student page
+socket.on("performance_refresh", () => {
+  console.log("📊 Refreshing performance data...");
+  blinkLiveIndicator();
+  loadPerformanceChart();
+});
+
+// 🧾 Set active course (for admin)
+async function setCourse() {
+  const course = document.getElementById("courseName").value.trim();
+  const mode = document.getElementById("mode").value;
+  try {
+    const res = await fetch("{{ url_for('set_course') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course, mode }),
+    });
+    const data = await res.json();
+    alert(data.message);
+
+    if (data.mode === "course" && data.course) {
+      localStorage.setItem("currentCourse", data.course);
+    } else {
+      localStorage.removeItem("currentCourse");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("❌ Failed to set course.");
+  }
+}
+
+// 🌗 Theme toggle + persistence
+document.addEventListener("DOMContentLoaded", async () => {
+  const toggle = document.getElementById("theme-toggle");
+  const savedTheme = localStorage.getItem("theme") || "light";
+  document.documentElement.setAttribute("data-theme", savedTheme);
+  toggle.textContent = savedTheme === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode";
+
+  toggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const next = current === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    toggle.textContent =
+      next === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode";
+    loadCourseChart();
+  });
+
+  await loadPerformanceChart();
+  await loadCourseChart();
+
+  try {
+    const resp = await fetch("{{ url_for('get_course') }}");
+    const data = await resp.json();
+    if (data.active && data.mode === "course" && data.course) {
+      localStorage.setItem("currentCourse", data.course);
+    } else {
+      localStorage.removeItem("currentCourse");
+    }
+  } catch (err) {
+    console.error("Failed to fetch current course:", err);
+  }
+});
+</script>
+</body>
+</html>

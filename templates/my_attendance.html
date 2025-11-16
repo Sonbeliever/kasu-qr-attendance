@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      margin: 0;
+      background: #f4f6f8;
+      color: #333;
+    }
+    .container {
+      width: 95%;
+      max-width: 900px;
+      margin: 1.5rem auto;
+      padding: 1.5rem;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    h1, h3, h4 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 1rem;
+    }
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    input[type="text"], input[name="id"] {
+      flex: 1;
+      min-width: 220px;
+      padding: 0.6rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 0.6rem 1rem;
+      background: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+
+    /* Table */
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.6rem;
+      text-align: left;
+    }
+    th {
+      background: #ecf0f1;
+    }
+
+    .actions {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 1rem;
+      color: #3498db;
+      text-decoration: none;
+    }
+
+    /* Dashboard cards */
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .card {
+      background: #f9fbfd;
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      text-align: center;
+      transition: transform 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+    }
+    .progress-circle {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: conic-gradient(var(--color) calc(var(--percent)*1%), #eee 0);
+      margin: 0 auto 0.5rem auto;
+    }
+    .progress-circle::before {
+      content: attr(data-percent) '%';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-weight: bold;
+    }
+    #studentChart {
+      width: 100% !important;
+      height: auto !important;
+      max-height: 400px;
+      margin-top: 2rem;
+    }
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  padding: 20px;
+}
+@media (max-width: 768px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+    @media (max-width: 600px) {
+      button, input { width: 100%; }
+      th, td { font-size: 0.85rem; padding: 0.4rem; }
+      h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class=".main-grid">
+  <div class="container">
+    <h1>My Attendance</h1>
+
+    <form method="post" action="{{ url_for('my_attendance') }}">
+      <input type="text" name="id" placeholder="Enter your ID" value="{{ query_id or '' }}" required>
+      <button type="submit">Search</button>
+    </form>
+
+    {% if records %}
+      <div class="table-wrapper">
+        <table id="myTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Course</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            <tr>
+              <td>{{ r.ID }}</td>
+              <td>{{ r.Name }}</td>
+              <td>{{ r.Date }}</td>
+              <td>{{ r.Time }}</td>
+              <td>{{ r.Course }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actions">
+        <button onclick="downloadMy()">⬇️ Download Excel</button>
+        <button onclick="window.print()">🖨️ Print</button>
+      </div>
+    {% else %}
+      <p style="text-align:center;">No records found.</p>
+    {% endif %}
+    <a href="{{ url_for('home') }}" class="back-link">⬅️ Back</a>
+  </div>
+
+  <div class="container">
+    <h3>📊 Attendance Performance Dashboard</h3>
+    <form onsubmit="event.preventDefault(); searchStudent();">
+      <input type="text" id="matricInput" placeholder="Enter Matric (e.g. KASU/SCE/23/CSC/1132)">
+      <button type="submit">Check My Performance</button>
+    </form>
+
+    <div id="studentResult" style="margin-top:1rem; text-align:center;"></div>
+    <div id="courseCards" class="dashboard"></div>
+    <canvas id="studentChart"></canvas>
+  </div>
+</div>
+  <script>
+    let chartInstance = null;
+
+    async function searchStudent() {
+      const matric = document.getElementById("matricInput").value.trim();
+      const resultDiv = document.getElementById("studentResult");
+      const chartCanvas = document.getElementById("studentChart");
+      const cardContainer = document.getElementById("courseCards");
+
+      if (!matric) return alert("Please enter your matric number.");
+
+      resultDiv.innerHTML = "<p>⏳ Loading...</p>";
+      cardContainer.innerHTML = "";
+      chartCanvas.style.display = "none";
+
+      try {
+        const res = await fetch(`/api/student_performance/${encodeURIComponent(matric)}`);
+        const data = await res.json();
+
+        if (!res.ok) return (resultDiv.innerHTML = `<p style='color:red;'>${data.error}</p>`);
+
+        resultDiv.innerHTML = `
+          <h4>${data.name}</h4>
+          <p><b>Matric:</b> ${data.matric}</p>
+          <p><b>Overall Attendance:</b> ${data.overall_percent}%</p>
+          <p style="color:${data.eligible ? 'green' : 'red'};">
+            ${data.eligible ? '✅ Eligible for Exam' : '❌ Not Eligible (Below 70%)'}
+          </p>
+        `;
+
+        // Create per-course progress cards
+        data.courses.forEach(c => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="progress-circle" style="--percent:${c.attendance_percent}; --color:${c.eligible ? '#4CAF50' : '#F44336'}" data-percent="${c.attendance_percent}"></div>
+            <h4>${c.course}</h4>
+            <p>${c.eligible ? '✅ Eligible' : '⚠️ Below 70%'}</p>
+          `;
+          cardContainer.appendChild(card);
+        });
+
+        // Chart
+        const labels = data.courses.map(c => c.course);
+        const values = data.courses.map(c => c.attendance_percent);
+        const colors = data.courses.map(c => c.eligible ? "#4CAF50" : "#F44336");
+
+        chartCanvas.style.display = "block";
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(chartCanvas, {
+          type: "bar",
+          data: { labels, datasets: [{ label: "Attendance (%)", data: values, backgroundColor: colors }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { title: { display: true, text: "Attendance by Course" }, legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 100 } }
+          }
+        });
+
+      } catch (err) {
+        resultDiv.innerHTML = `<p style='color:red;'>Error: ${err.message}</p>`;
+      }
+    }
+
+    function downloadMy() {
+      const table = document.getElementById('myTable');
+      if (!table) return alert('No data to download');
+      const wb = XLSX.utils.table_to_book(table);
+      const id = "{{ query_id or 'unknown' }}";
+      const today = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(wb, `attendance_${id}_${today}.xlsx`);
+    }
+
+    const socket = io();
+    socket.on("attendance_update", (data) => {
+      const matricInput = document.getElementById("matricInput").value.trim().toLowerCase();
+      if (matricInput === data.matric.toLowerCase()) {
+        console.log("🔄 Live update received for:", matricInput);
+        searchStudent();
+      }
+    });
+
+    socket.on("attendance_update", () => {
+  loadPerformanceChart();
+  loadCourseChart();
+});
+
+  </script>
+</body>
+</html>

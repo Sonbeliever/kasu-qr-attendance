@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import pandas as pd
 from datetime import datetime
+import pytz
 import qrcode, os, tempfile, traceback, logging, uuid
 
 # ---------------------- App setup ----------------------
@@ -482,7 +483,9 @@ def generate_qr():
         traceback.print_exc()
         return jsonify({"message": "Failed to generate QR", "error": str(e)}), 500
     socketio.emit("attendance_update", {"matric": student_id})
-
+    
+def now_lagos():
+    return datetime.now(pytz.timezone("Africa/Lagos"))
 # ---------------------- Attendance marking ----------------------
 @app.route('/mark_attendance', methods=['POST'])
 def mark_attendance():
@@ -497,7 +500,7 @@ def mark_attendance():
         traceback.print_exc()
         return jsonify({"success": False, "message": "Invalid QR content", "error": str(e)}), 400
 
-    now = datetime.now()
+    now = now_lagos()
     date_today = now.strftime('%Y-%m-%d')
     time_now = now.strftime('%H:%M:%S')
     norm_scanned = norm_id(student_id)

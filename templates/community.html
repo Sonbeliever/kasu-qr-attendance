@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} | Community{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Student community</p>
+    <h2>Share notes, questions, materials, and lightweight polls with campus moderation built in.</h2>
+  </div>
+  <div class="hero-actions">
+    <a class="button-link {{ 'button-secondary' if view_mode != 'all' else '' }}" href="{{ url_for('community', view='all') }}">Visible posts</a>
+    {% if current_user.department_id %}
+    <a class="button-link {{ 'button-secondary' if view_mode != 'department' else '' }}" href="{{ url_for('community', view='department') }}">My department</a>
+    {% endif %}
+  </div>
+</section>
+
+{% if current_user.role == 'student' %}
+<section class="section-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Create content</p>
+      <h3>Post note or poll</h3>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('create_community_post') }}" class="form-grid">
+    <label>
+      Content type
+      <select name="post_type" id="post_type">
+        <option value="post">Regular post</option>
+        <option value="poll">Poll</option>
+      </select>
+    </label>
+    <label>
+      Visibility
+      <select name="visibility">
+        <option value="department">Same department</option>
+        <option value="all">All departments</option>
+      </select>
+    </label>
+    <label class="span-2">
+      Title
+      <input type="text" name="title" required>
+    </label>
+    <label class="span-2">
+      Body
+      <textarea name="body" rows="5" required></textarea>
+    </label>
+    <label class="span-2" id="poll_options_wrap">
+      Poll options
+      <textarea name="poll_options" rows="4" placeholder="One option per line"></textarea>
+    </label>
+    <button type="submit">Publish content</button>
+  </form>
+</section>
+{% endif %}
+
+{% if flagged_items %}
+<section class="section-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Moderation queue</p>
+      <h3>Flagged items awaiting review</h3>
+    </div>
+  </div>
+  <div class="stack-list">
+    {% for item in flagged_items %}
+    <div class="approval-card">
+      <div>
+        <strong>{{ item.item_type|title }} by {{ item.author_name }}</strong>
+        <p>{{ item.headline }}</p>
+        <p>{{ item.reason }}</p>
+      </div>
+      <div class="action-row">
+        <form method="post" action="{{ url_for('review_content', content_type=item.item_type, content_id=item.id) }}">
+          <input type="hidden" name="decision" value="approved">
+          <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="{{ url_for('review_content', content_type=item.item_type, content_id=item.id) }}">
+          <input type="hidden" name="decision" value="rejected">
+          <button type="submit" class="button-danger">Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="community-feed">
+  {% for post in posts %}
+  <article class="community-card">
+    <div class="community-head">
+      <div>
+        <span class="pill">{{ post.visibility|title }}</span>
+        <span class="pill pill-soft">{{ post.department_name }}</span>
+      </div>
+      <small>{{ post.created_at }}</small>
+    </div>
+    <h3>{{ post.title }}</h3>
+    <p>{{ post.body }}</p>
+    <p class="muted-line">By {{ post.author_name }}</p>
+
+    {% if post.post_type == 'poll' %}
+    <div class="poll-block">
+      {% for option in post.poll_options %}
+      <div class="poll-option">
+        <div class="status-row">
+          <strong>{{ option.option_text }}</strong>
+          <span>{{ option.vote_count }} vote{{ '' if option.vote_count == 1 else 's' }}</span>
+        </div>
+        {% if current_user.role == 'student' %}
+        <form method="post" action="{{ url_for('vote_poll', post_id=post.id) }}">
+          <input type="hidden" name="option_id" value="{{ option.id }}">
+          <button type="submit" {% if post.user_vote_id %}disabled{% endif %}>
+            {% if post.user_vote_id == option.id %}Voted{% elif post.user_vote_id %}Vote closed{% else %}Vote{% endif %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <p class="muted-line">Total votes: {{ post.poll_total_votes }}</p>
+    </div>
+    {% endif %}
+
+    <div class="community-actions">
+      {% if current_user.role == 'student' %}
+      <form method="post" action="{{ url_for('toggle_like', post_id=post.id) }}">
+        <button type="submit">{{ 'Unlike' if post.liked_by_user else 'Like' }} ({{ post.likes_count }})</button>
+      </form>
+      {% else %}
+      <span class="pill pill-soft">Likes: {{ post.likes_count }}</span>
+      {% endif %}
+      <span class="pill pill-soft">Comments: {{ post.comments_count }}</span>
+    </div>
+
+    <div class="comment-list">
+      {% for comment in post.comments %}
+      <div class="comment-item">
+        <strong>{{ comment.author_name }}</strong>
+        <p>{{ comment.body }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if current_user.role == 'student' %}
+    <form method="post" action="{{ url_for('add_comment', post_id=post.id) }}" class="inline-comment-form">
+      <textarea name="body" rows="2" placeholder="Add a comment"></textarea>
+      <button type="submit">Comment</button>
+    </form>
+    {% endif %}
+  </article>
+  {% else %}
+  <div class="section-card">
+    <p class="empty-state">No community posts are visible with the current filter.</p>
+  </div>
+  {% endfor %}
+</section>
+
+{% if current_user.role == 'student' %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const typeField = document.getElementById("post_type");
+  const wrap = document.getElementById("poll_options_wrap");
+  if (!typeField || !wrap) return;
+  function sync() {
+    wrap.style.display = typeField.value === "poll" ? "block" : "none";
+  }
+  typeField.addEventListener("change", sync);
+  sync();
+});
+</script>
+{% endif %}
+{% endblock %}

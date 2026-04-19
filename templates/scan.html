@@ -1,182 +1,199 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Scanner</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="https://unpkg.com/html5-qrcode" defer></script>
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <style>
-    .muted { color: gray; }
+{% extends "base.html" %}
 
-    /* ✅ Success animation */
-    .success {
-      color: green;
-      font-weight: bold;
-      animation: fadeInOut 2s ease-in-out;
-    }
+{% block title %}{{ app_name }} | Attendance Scanner{% endblock %}
 
-    /* ❌ Error animation */
-    .error {
-      color: red;
-      font-weight: bold;
-      animation: shake 0.4s ease-in-out, fadeInOut 2s ease-in-out;
-    }
-
-    @keyframes fadeInOut {
-      0% { opacity: 0; transform: scale(0.9); }
-      10% { opacity: 1; transform: scale(1.05); }
-      90% { opacity: 1; transform: scale(1); }
-      100% { opacity: 0; transform: scale(0.9); }
-    }
-
-    @keyframes shake {
-      0% { transform: translateX(0); }
-      25% { transform: translateX(-4px); }
-      50% { transform: translateX(4px); }
-      75% { transform: translateX(-4px); }
-      100% { transform: translateX(0); }
-    }
-
-    /* 🌙 Theme toggle button styling */
-    #theme-toggle {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: var(--button-bg, #ddd);
-      color: var(--button-text, #000);
-      border: none;
-      padding: 10px 15px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      z-index: 1000;
-    }
-
-    [data-theme="dark"] #theme-toggle {
-      --button-bg: #222;
-      --button-text: #fff;
-    }
-  </style>
-</head>
-<body>
-  <!-- 🌗 Theme Toggle -->
-  <button id="theme-toggle" class="theme-toggle">🌞 Light Mode</button>
-
-  <div class="container">
-    <h1>QR Scanner</h1>
-    <div id="reader"></div>
-    <div id="result" class="muted">Ready to scan...</div>
-    <p><a href="{{ url_for('home') }}">Back</a></p>
-
-    <!-- 🎵 Audio for success -->
-    <audio id="success-sound" preload="auto">
-      <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-    </audio>
-
-    <!-- ❌ Audio for error -->
-    <audio id="error-sound" preload="auto">
-      <source src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" type="audio/ogg">
-    </audio>
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Attendance operations</p>
+    <h2>Start a session, scan student QR codes, and keep duplicate entries out.</h2>
   </div>
+  <div class="hero-actions">
+    <a class="button-link button-secondary" href="{{ url_for('history', department_id=selected_department_id) }}">Open reports</a>
+  </div>
+</section>
 
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Session control</p>
+        <h3>Start attendance session</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('start_session') }}" class="form-grid">
+      {% if current_user.role == 'super_admin' %}
+      <label>
+        Department
+        <select name="department_id" required>
+          <option value="">Select department</option>
+          {% for department in departments %}
+          <option value="{{ department.id }}" {{ 'selected' if department.id == selected_department_id else '' }}>{{ department.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <label>
+        Session type
+        <select name="session_type" id="session_type">
+          <option value="general">General</option>
+          <option value="course">Course-specific</option>
+        </select>
+      </label>
+      <label id="course_select_wrap">
+        Course
+        <select name="course_id">
+          <option value="">Select course</option>
+          {% for course in courses %}
+          <option value="{{ course.id }}">{{ course.code }} - {{ course.title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="span-2">
+        Session title
+        <input type="text" name="title" placeholder="Optional custom title">
+      </label>
+      <button type="submit">Start session</button>
+    </form>
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Current session</p>
+        <h3>Active scanner target</h3>
+      </div>
+    </div>
+    {% if active_session %}
+    <div class="status-panel">
+      <strong>{{ active_session.title }}</strong>
+      <p>{{ active_session.department_name }}</p>
+      <p>{{ active_session.session_type|title }} {% if active_session.course_code %}| {{ active_session.course_code }}{% endif %}</p>
+      <p>{{ active_session.session_date }} at {{ active_session.start_time }}</p>
+      <form method="post" action="{{ url_for('close_session', session_id=active_session.id) }}">
+        <button type="submit" class="button-danger">Close session</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="empty-state">No active session for this department yet.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Scanner</p>
+        <h3>Mark attendance with QR</h3>
+      </div>
+    </div>
+    {% if active_session %}
+    <div id="reader" class="scanner-box"></div>
+    <div id="scan-status" class="result-box">Camera ready. Scan the student QR code.</div>
+    {% else %}
+    <p class="empty-state">Start a session before opening the scanner.</p>
+    {% endif %}
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Recent sessions</p>
+        <h3>Attendance history snapshot</h3>
+      </div>
+    </div>
+    <div class="table-wrap compact-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Department</th>
+            <th>Type</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for session_row in recent_sessions %}
+          <tr>
+            <td>{{ session_row.title }}</td>
+            <td>{{ session_row.department_name }}</td>
+            <td>{{ session_row.session_type|title }}</td>
+            <td>{{ session_row.session_date }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" class="empty-state">No sessions recorded yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+{% if active_session %}
+<script src="https://unpkg.com/html5-qrcode" defer></script>
 <script>
-document.addEventListener('DOMContentLoaded', async () => {
-  const resultDiv = document.getElementById('result');
-  const successSound = document.getElementById('success-sound');
-  const errorSound = document.getElementById('error-sound');
-  const reader = new Html5Qrcode("reader");
+document.addEventListener("DOMContentLoaded", () => {
+  const typeField = document.getElementById("session_type");
+  const courseWrap = document.getElementById("course_select_wrap");
+  const statusBox = document.getElementById("scan-status");
 
-  // 🌙 THEME HANDLER
-  const toggle = document.getElementById('theme-toggle');
-  const currentTheme = localStorage.getItem('theme');
-  if (currentTheme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    toggle.textContent = '🌙 Dark Mode';
+  function syncCourseVisibility() {
+    courseWrap.style.display = typeField.value === "course" ? "block" : "none";
   }
 
-  toggle.addEventListener('click', () => {
-    const theme = document.documentElement.getAttribute('data-theme');
-    if (theme === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-      toggle.textContent = '🌞 Light Mode';
-      localStorage.setItem('theme', 'light');
-    } else {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      toggle.textContent = '🌙 Dark Mode';
-      localStorage.setItem('theme', 'dark');
-    }
-  });
-
-  // ✅ QR SCANNER LOGIC
-  async function startScanner() {
-    try {
-      await reader.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        onScanSuccess,
-        () => {}
-      );
-    } catch (err) {
-      resultDiv.innerHTML = '<p style="color:red">Camera access denied or not available.</p>';
-      console.error(err);
-    }
+  if (typeField) {
+    typeField.addEventListener("change", syncCourseVisibility);
+    syncCourseVisibility();
   }
 
-  async function onScanSuccess(decodedText) {
-    await reader.stop();
-    resultDiv.innerHTML = `<p>Scanned: ${decodedText}</p>`;
+  if (!window.Html5Qrcode) return;
 
-    // ✅ include course name from localStorage (set when admin picks course)
-    const course = localStorage.getItem("currentCourse") || "";
+  const html5QrCode = new Html5Qrcode("reader");
+  let locked = false;
+
+  async function handleScan(decodedText) {
+    if (locked) return;
+    locked = true;
+    statusBox.textContent = "Marking attendance for scanned QR...";
 
     try {
-      const response = await fetch('{{ url_for("mark_attendance") }}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: decodedText, course: course })
+      const response = await fetch("{{ url_for('mark_attendance') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: decodedText,
+          session_id: {{ active_session.id }},
+          department_id: {{ active_session.department_id }}
+        })
       });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        errorSound.currentTime = 0;
-        errorSound.play();
-        resultDiv.innerHTML += `<p class="error">${data.message || 'Failed to mark attendance.'}</p>`;
-      } else {
-        // iterate messages array
-        data.messages.forEach(msg => {
-          if (msg.toLowerCase().includes("already")) {
-            errorSound.currentTime = 0;
-            errorSound.play();
-            resultDiv.innerHTML += `<p class="error">${msg}</p>`;
-          } else {
-            successSound.currentTime = 0;
-            successSound.play();
-            resultDiv.innerHTML += `<p class="success">${msg}</p>`;
-          }
-        });
-      }
-
+      const payload = await response.json();
+      statusBox.textContent = payload.message || "Attendance updated.";
+      statusBox.className = response.ok ? "result-box success-box" : "result-box error-box";
     } catch (error) {
-      console.error(error);
-      errorSound.currentTime = 0;
-      errorSound.play();
-      resultDiv.innerHTML += '<p class="error">Failed to send attendance.</p>';
+      statusBox.textContent = "Unable to send the attendance scan.";
+      statusBox.className = "result-box error-box";
+    } finally {
+      setTimeout(() => {
+        locked = false;
+        statusBox.textContent = "Camera ready. Scan the next student QR code.";
+        statusBox.className = "result-box";
+      }, 1800);
     }
-
-    // 🔁 Restart scanning after 2 seconds
-    setTimeout(() => {
-      resultDiv.innerHTML = '<p class="muted">Ready for next scan...</p>';
-      startScanner();
-    }, 2000);
   }
 
-  startScanner();
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 240, height: 240 } },
+    handleScan,
+    () => {}
+  ).catch(() => {
+    statusBox.textContent = "Camera access could not be started on this device.";
+    statusBox.className = "result-box error-box";
+  });
 });
-
-
 </script>
-</body>
-</html>
+{% endif %}
+{% endblock %}

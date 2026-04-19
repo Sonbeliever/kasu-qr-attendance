@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+static/uploads/
+smoke_test*.db

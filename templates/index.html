@@ -1,419 +1,546 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Attendance Home</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
-<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-<style>
-  /* 🌞 Light Mode (default) */
-  :root[data-theme='light'] {
-    --bg-color: #ffffff;
-    --text-color: #111111;
-    --btn-bg: #007bff;
-    --btn-text: #ffffff;
-    --card-bg: #f8f8f8;
-    --chart-color: #2196F3;
-  }
+{% extends "base.html" %}
 
-  /* 🌙 Dark Mode */
-  :root[data-theme='dark'] {
-    --bg-color: #111111;
-    --text-color: #ffffff;
-    --btn-bg: #444444;
-    --btn-text: #ffffff;
-    --card-bg: #1e1e1e;
-    --chart-color: #90CAF9;
-  }
+{% block title %}{{ app_name }} | Dashboard{% endblock %}
 
-  body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: Arial, sans-serif;
-    transition: background-color 0.3s, color 0.3s;
-  }
-
-  .container {
-    max-width: 600px;
-    margin: 40px auto;
-    padding: 20px;
-    background: var(--card-bg);
-    border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    text-align: center;
-  }
-
-  input, select, button {
-    padding: 10px;
-    margin: 8px 0;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    width: 100%;
-    font-size: 15px;
-  }
-
-  button {
-    background: var(--btn-bg);
-    color: var(--btn-text);
-    cursor: pointer;
-    border: none;
-    transition: opacity 0.2s;
-  }
-
-  button:hover { opacity: 0.9; }
-
-  .theme-toggle {
-    width: 200px;
-    position: fixed;
-    top: 15px;
-    right: 15px;
-    background: var(--btn-bg);
-    color: var(--btn-text);
-    border: none;
-    padding: 10px 12px;
-    border-radius: 30px;
-    cursor: pointer;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-    font-size: 14px;
-  }
-
-  .buttons button {
-    margin-top: 10px;
-  }
-
-  .card {
-    padding: 15px;
-    margin-bottom: 20px;
-    background: var(--card-bg);
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
-
-  canvas {
-    display: block;
-    margin: 20px auto;
-    max-width: 100%;
-    height: 300px;
-  }
-
-  #loading {
-    text-align: center;
-    color: gray;
-    padding: 10px;
-    display: none;
-  }
-
-.main-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  padding: 20px;
-}
-@media (max-width: 768px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-h3{
-margin-top:50px;
-}
-</style>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-</head>
-
-<body>
-  <button id="theme-toggle" class="theme-toggle">🌙 Dark Mode</button>
-<div class="main-grid">
-  <div class="container">
-    <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="kasu_logo" width="100" height="100" id="kasu_image">
-    <h1>Welcome, {{ session.get('user','Guest')|capitalize }}</h1>
-    <p>Role: {{ session.get('role','')|capitalize }}</p>
-
-    {% if session.get('role') == 'admin' %}
-    <div class="card">
-      <h3>Start Attendance (Admin)</h3>
-      <form id="courseForm" onsubmit="event.preventDefault(); setCourse();">
-        <input type="text" id="courseName" placeholder="Course name (leave blank for general)">
-        <label for="mode">📘 Mode</label>
-        <select id="mode">
-          <option value="general">General Attendance</option>
-          <option value="course">Course Attendance</option>
-        </select>
-        <button type="submit">Set Course</button>
-      </form>
-    </div>
+{% block content %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Campus command center</p>
+    {% if current_user.role == 'student' %}
+    <h2>Track your courses, eligibility, QR identity, and community activity from one dashboard.</h2>
+    {% else %}
+    <h2>Manage departments, attendance operations, student identity, and flagged community activity from one place.</h2>
     {% endif %}
+  </div>
+  <div class="hero-actions">
+    {% if current_user.role in ['super_admin', 'department_admin'] %}
+    <a class="button-link" href="{{ url_for('scan') }}">Open attendance scanner</a>
+    <a class="button-link button-secondary" href="{{ url_for('history') }}">View attendance reports</a>
+    {% else %}
+    <a class="button-link" href="{{ url_for('my_attendance') }}">View detailed attendance</a>
+    <a class="button-link button-secondary" href="{{ url_for('id_card') }}">Open ID card center</a>
+    {% endif %}
+  </div>
+</section>
 
-    <div class="buttons">
-      {% if session.get('role')=='admin' %}
-        <button onclick="location.href='{{ url_for('generate') }}'">Generate QR</button>
-        <button onclick="location.href='{{ url_for('history') }}'">View History</button>
-      {% endif %}
-      <button onclick="location.href='{{ url_for('scan') }}'">Scan Attendance</button>
-      <button onclick="location.href='{{ url_for('my_attendance') }}'">My Attendance</button>
-      <button onclick="location.href='{{ url_for('logout') }}'">Logout</button>
-      <hr>
-      <button onclick="location.href='{{ url_for('change_password') }}'">Change Password</button>
+{% if current_user.role == 'student' %}
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Overall course attendance</span>
+    <strong>{{ dashboard.performance.overall_percent }}%</strong>
+  </article>
+  <article class="metric-card">
+    <span>Eligible courses</span>
+    <strong>{{ dashboard.performance.eligible_courses }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>Pending reprint requests</span>
+    <strong>{{ dashboard.pending_reprint_count }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>QR identity</span>
+    <strong>{% if dashboard.student.qr_path %}Ready{% else %}Pending{% endif %}</strong>
+  </article>
+</section>
+
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Attendance performance</p>
+        <h3>Course eligibility</h3>
+      </div>
     </div>
+    <div class="stack-list">
+      {% if dashboard.performance.general_summary %}
+      <div class="progress-item">
+        <div class="progress-meta">
+          <strong>General attendance</strong>
+          <span>{{ dashboard.performance.general_summary.attended }}/{{ dashboard.performance.general_summary.total_sessions }}</span>
+        </div>
+        <div class="progress-bar"><span style="width: {{ dashboard.performance.general_summary.attendance_percent }}%"></span></div>
+        <div class="status-row">
+          <span>{{ dashboard.performance.general_summary.attendance_percent }}%</span>
+          <span class="status-badge {{ 'status-good' if dashboard.performance.general_summary.eligible else 'status-bad' }}">
+            {{ 'Eligible' if dashboard.performance.general_summary.eligible else 'Not eligible' }}
+          </span>
+        </div>
+      </div>
+      {% endif %}
 
-    <p>&copy; 2025 | Design by Codex CyberSquad</p>
+      {% for item in dashboard.performance.courses %}
+      <div class="progress-item">
+        <div class="progress-meta">
+          <strong>{{ item.code }}</strong>
+          <span>{{ item.attended }}/{{ item.total_sessions }}</span>
+        </div>
+        <p class="muted-line">{{ item.title }}</p>
+        <div class="progress-bar"><span style="width: {{ item.attendance_percent }}%"></span></div>
+        <div class="status-row">
+          <span>{{ item.attendance_percent }}%</span>
+          <span class="status-badge {{ 'status-good' if item.eligible else 'status-bad' }}">
+            {{ 'Eligible' if item.eligible else 'Not eligible' }}
+          </span>
+        </div>
+      </div>
+      {% else %}
+      <p class="empty-state">No course sessions have been recorded for your department yet.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Student profile</p>
+        <h3>Manage your details</h3>
+      </div>
+    </div>
+    <div class="profile-card">
+      <img src="{{ url_for('static', filename=current_user.profile_photo or 'kasu.jpg') }}" alt="Profile photo" class="profile-photo">
+      <div>
+        <strong>{{ current_user.full_name }}</strong>
+        <p>{{ current_user.matric_number }}</p>
+        <p>{{ current_user.department_name }}</p>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('update_profile') }}" enctype="multipart/form-data" class="form-grid">
+      <label>
+        Full name
+        <input type="text" name="full_name" value="{{ current_user.full_name }}" required>
+      </label>
+      <label>
+        Email
+        <input type="email" name="email" value="{{ current_user.email }}" required>
+      </label>
+      <label>
+        Phone number
+        <input type="text" name="phone" value="{{ current_user.phone }}" required>
+      </label>
+      <label>
+        Replace profile photo
+        <input type="file" name="profile_photo" accept=".png,.jpg,.jpeg,.webp">
+      </label>
+      <button type="submit">Save profile</button>
+    </form>
+  </article>
+</section>
+
+<section class="section-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Recent records</p>
+      <h3>Your attendance log</h3>
+    </div>
+    <a class="button-link button-secondary" href="{{ url_for('my_attendance') }}">Open full attendance page</a>
   </div>
-
-  <div class="container">
-    <h3>📊 Student Attendance Performance</h3>
-    <div id="loading">Loading charts...</div>
-    <canvas id="performanceChart"></canvas>
-
-    <h3 >📈 Average Attendance by Course</h3>
-    <canvas id="courseChart"></canvas>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th>Type</th>
+          <th>Course</th>
+          <th>Date</th>
+          <th>Marked</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in dashboard.recent_attendance %}
+        <tr>
+          <td>{{ row.session_title }}</td>
+          <td>{{ row.session_type|title }}</td>
+          <td>{{ row.course_code or 'General' }}</td>
+          <td>{{ row.session_date }}</td>
+          <td>{{ row.marked_at }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">No attendance records yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+</section>
+{% else %}
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>Departments</span>
+    <strong>{{ dashboard.counts.departments }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>Department admins</span>
+    <strong>{{ dashboard.counts.department_admins }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>Students</span>
+    <strong>{{ dashboard.counts.students }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>Courses</span>
+    <strong>{{ dashboard.counts.courses }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>Active sessions</span>
+    <strong>{{ dashboard.counts.active_sessions }}</strong>
+  </article>
+</section>
+
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Profile</p>
+        <h3>Update account info</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('update_profile') }}" enctype="multipart/form-data" class="form-grid">
+      <label>
+        Full name
+        <input type="text" name="full_name" value="{{ current_user.full_name }}" required>
+      </label>
+      <label>
+        Email
+        <input type="email" name="email" value="{{ current_user.email }}" required>
+      </label>
+      <label>
+        Phone number
+        <input type="text" name="phone" value="{{ current_user.phone }}" required>
+      </label>
+      <label>
+        Replace profile photo
+        <input type="file" name="profile_photo" accept=".png,.jpg,.jpeg,.webp">
+      </label>
+      <button type="submit">Save profile</button>
+    </form>
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Course analytics</p>
+        <h3>Attendance performance snapshot</h3>
+      </div>
+    </div>
+    <div class="table-wrap compact-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Course</th>
+            <th>Sessions</th>
+            <th>Average attendance</th>
+            <th>Eligible students</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in dashboard.analytics %}
+          <tr>
+            <td>{{ item.code }}<br><span class="muted-line">{{ item.title }}</span></td>
+            <td>{{ item.total_sessions }}</td>
+            <td>{{ item.average_attendance }}%</td>
+            <td>{{ item.eligible_students }}/{{ item.total_students }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" class="empty-state">No course analytics yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+{% if current_user.role == 'super_admin' %}
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Department setup</p>
+        <h3>Create department</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('create_department') }}" class="form-grid">
+      <label>
+        Department name
+        <input type="text" name="name" required>
+      </label>
+      <label>
+        Department code
+        <input type="text" name="code" placeholder="CSC" required>
+      </label>
+      <label class="span-2">
+        Description
+        <textarea name="description" rows="3"></textarea>
+      </label>
+      <button type="submit">Create department</button>
+    </form>
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Department admin assignment</p>
+        <h3>Create department admin</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('create_department_admin') }}" class="form-grid">
+      <label>
+        Full name
+        <input type="text" name="full_name" required>
+      </label>
+      <label>
+        Username
+        <input type="text" name="username" required>
+      </label>
+      <label>
+        Email
+        <input type="email" name="email" required>
+      </label>
+      <label>
+        Phone
+        <input type="text" name="phone" required>
+      </label>
+      <label>
+        Department
+        <select name="department_id" required>
+          <option value="">Select department</option>
+          {% for department in departments %}
+          <option value="{{ department.id }}">{{ department.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Temporary password
+        <input type="text" name="password" required>
+      </label>
+      <button type="submit">Create department admin</button>
+    </form>
+  </article>
+</section>
+
+<section class="section-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Departments overview</p>
+      <h3>Department structure</h3>
+    </div>
   </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Department</th>
+          <th>Code</th>
+          <th>Admins</th>
+          <th>Students</th>
+          <th>Courses</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for department in dashboard.departments %}
+        <tr>
+          <td>{{ department.name }}</td>
+          <td>{{ department.code }}</td>
+          <td>{{ department.admin_count }}</td>
+          <td>{{ department.student_count }}</td>
+          <td>{{ department.course_count }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_department', department_id=department.id) }}" onsubmit="return confirm('Delete this department?')">
+              <button type="submit" class="button-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">No departments created yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script>
-let performanceChart, courseChart;
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Course management</p>
+        <h3>Create course</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('create_course') }}" class="form-grid">
+      {% if current_user.role == 'super_admin' %}
+      <label>
+        Department
+        <select name="department_id" required>
+          <option value="">Select department</option>
+          {% for department in departments %}
+          <option value="{{ department.id }}">{{ department.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <label>
+        Course code
+        <input type="text" name="code" placeholder="CSC401" required>
+      </label>
+      <label class="span-2">
+        Course title
+        <input type="text" name="title" required>
+      </label>
+      <label>
+        Semester
+        <input type="text" name="semester" placeholder="First Semester">
+      </label>
+      <button type="submit">Save course</button>
+    </form>
+  </article>
 
-// 🟢 Live update indicator element
-const liveIndicator = document.createElement("div");
-liveIndicator.id = "live-indicator";
-liveIndicator.style.cssText = `
-  position: fixed; top: 10px; right: 15px; background: #4CAF50;
-  color: white; padding: 6px 12px; border-radius: 8px;
-  font-size: 13px; font-weight: 600; display: none; z-index: 1000;
-`;
-liveIndicator.textContent = "🟢 Live Update";
-document.body.appendChild(liveIndicator);
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Moderation queue</p>
+        <h3>Flagged community content</h3>
+      </div>
+      <a class="button-link button-secondary" href="{{ url_for('community') }}">Open moderation page</a>
+    </div>
+    <div class="stack-list">
+      {% for item in dashboard.flagged_items %}
+      <div class="mini-card">
+        <strong>{{ item.item_type|title }} in {{ item.department_name }}</strong>
+        <span>{{ item.headline }}</span>
+        <p>{{ item.reason }}</p>
+      </div>
+      {% else %}
+      <p class="empty-state">No flagged community content right now.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
 
-// Utility to blink live indicator
-function blinkLiveIndicator() {
-  liveIndicator.style.display = "block";
-  setTimeout(() => (liveIndicator.style.display = "none"), 2500);
-}
+<section class="section-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Student roster</p>
+      <h3>Manage department students</h3>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Matric</th>
+          <th>Department</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for student in dashboard.students %}
+        <tr>
+          <td>{{ student.full_name }}</td>
+          <td>{{ student.matric_number }}</td>
+          <td>{{ student.department_name }}</td>
+          <td>{{ student.email }}</td>
+          <td>
+            <span class="status-badge {{ 'status-good' if student.is_active else 'status-bad' }}">
+              {{ 'Active' if student.is_active else 'Inactive' }}
+            </span>
+          </td>
+          <td class="action-row">
+            <form method="post" action="{{ url_for('toggle_account_status', account_id=student.id) }}">
+              <button type="submit">{{ 'Deactivate' if student.is_active else 'Activate' }}</button>
+            </form>
+            <form method="post" action="{{ url_for('delete_account', account_id=student.id) }}" onsubmit="return confirm('Delete this account?')">
+              <button type="submit" class="button-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">No students registered yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 
-// 🎨 Theme color getter
-function getChartColor() {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue("--chart-color")
-    .trim();
-}
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Recent attendance</p>
+        <h3>Latest records</h3>
+      </div>
+    </div>
+    <div class="table-wrap compact-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Session</th>
+            <th>Course</th>
+            <th>Marked</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dashboard.recent_attendance %}
+          <tr>
+            <td>{{ row.student_name }}</td>
+            <td>{{ row.session_title }}</td>
+            <td>{{ row.course_code or 'General' }}</td>
+            <td>{{ row.marked_at }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" class="empty-state">No attendance records yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
 
-// 📊 Load individual performance chart
-async function loadPerformanceChart() {
-  document.getElementById("loading").style.display = "block";
-  try {
-    const res = await fetch("/api/performance");
-    if (!res.ok) throw new Error("Server error");
-    const data = await res.json();
-
-    const labels = data.map((d) => `${d.student_id} (${d.course})`);
-    const values = data.map((d) => d.attendance_percent);
-    const colors = data.map((d) => (d.eligible ? "#4CAF50" : "#F44336"));
-
-    const ctx = document.getElementById("performanceChart").getContext("2d");
-
-    if (performanceChart) {
-      // Update existing chart for smoother transition
-      performanceChart.data.labels = labels;
-      performanceChart.data.datasets[0].data = values;
-      performanceChart.data.datasets[0].backgroundColor = colors;
-      performanceChart.update("active");
-    } else {
-      performanceChart = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Attendance (%)",
-              data: values,
-              backgroundColor: colors,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            title: {
-              display: true,
-              text: "Student Attendance Percentage (Green = Eligible, Red = <70%)",
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const s = data[ctx.dataIndex];
-                  return `${s.matric_no} - ${s.course}: ${s.attendance_percent}% (${
-                    s.eligible ? "Eligible" : "Not Eligible"
-                  })`;
-                },
-              },
-            },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              title: { display: true, text: "Attendance Percentage (%)" },
-            },
-          },
-        },
-      });
-    }
-  } catch (err) {
-    console.error(err);
-    alert("⚠️ Failed to load performance chart.");
-  } finally {
-    document.getElementById("loading").style.display = "none";
-  }
-}
-
-// 📈 Load average course chart
-async function loadCourseChart() {
-  try {
-    const res = await fetch("/api/course_average");
-    if (!res.ok) throw new Error("Server error");
-    const data = await res.json();
-
-    const labels = data.map((d) => d.course);
-    const values = data.map((d) => d.avg_attendance);
-
-    const ctx = document.getElementById("courseChart").getContext("2d");
-
-    if (courseChart) {
-      courseChart.data.labels = labels;
-      courseChart.data.datasets[0].data = values;
-      courseChart.update("active");
-    } else {
-      courseChart = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Average Attendance (%)",
-              data: values,
-              backgroundColor: getChartColor(),
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            title: {
-              display: true,
-              text: "Average Attendance Rate by Course",
-            },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-            },
-          },
-        },
-      });
-    }
-  } catch (err) {
-    console.error(err);
-    alert("⚠️ Failed to load course chart.");
-  }
-}
-
-// 🔄 Real-time updates via Socket.IO
-const socket = io();
-
-socket.on("connect", () => {
-  console.log("✅ Connected to live attendance server");
-});
-
-socket.on("disconnect", () => {
-  console.log("⚠️ Disconnected from live server");
-});
-
-// When new attendance is recorded
-socket.on("attendance_update", (data) => {
-  console.log("🔄 Attendance update received:", data);
-  blinkLiveIndicator();
-  loadPerformanceChart();
-  loadCourseChart();
-});
-
-// When course/session changes
-socket.on("course_changed", (data) => {
-  console.log("📚 Course changed:", data);
-  blinkLiveIndicator();
-  loadPerformanceChart();
-  loadCourseChart();
-});
-
-// Optional: refresh personal view if student page
-socket.on("performance_refresh", () => {
-  console.log("📊 Refreshing performance data...");
-  blinkLiveIndicator();
-  loadPerformanceChart();
-});
-
-// 🧾 Set active course (for admin)
-async function setCourse() {
-  const course = document.getElementById("courseName").value.trim();
-  const mode = document.getElementById("mode").value;
-  try {
-    const res = await fetch("{{ url_for('set_course') }}", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ course, mode }),
-    });
-    const data = await res.json();
-    alert(data.message);
-
-    if (data.mode === "course" && data.course) {
-      localStorage.setItem("currentCourse", data.course);
-    } else {
-      localStorage.removeItem("currentCourse");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("❌ Failed to set course.");
-  }
-}
-
-// 🌗 Theme toggle + persistence
-document.addEventListener("DOMContentLoaded", async () => {
-  const toggle = document.getElementById("theme-toggle");
-  const savedTheme = localStorage.getItem("theme") || "light";
-  document.documentElement.setAttribute("data-theme", savedTheme);
-  toggle.textContent = savedTheme === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode";
-
-  toggle.addEventListener("click", () => {
-    const current = document.documentElement.getAttribute("data-theme");
-    const next = current === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
-    toggle.textContent =
-      next === "dark" ? "🌞 Light Mode" : "🌙 Dark Mode";
-    loadCourseChart();
-  });
-
-  await loadPerformanceChart();
-  await loadCourseChart();
-
-  try {
-    const resp = await fetch("{{ url_for('get_course') }}");
-    const data = await resp.json();
-    if (data.active && data.mode === "course" && data.course) {
-      localStorage.setItem("currentCourse", data.course);
-    } else {
-      localStorage.removeItem("currentCourse");
-    }
-  } catch (err) {
-    console.error("Failed to fetch current course:", err);
-  }
-});
-</script>
-</body>
-</html>
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">ID card approvals</p>
+        <h3>Reprint requests</h3>
+      </div>
+    </div>
+    <div class="stack-list">
+      {% for request_row in dashboard.reprint_requests %}
+      <div class="approval-card">
+        <div>
+          <strong>{{ request_row.student_name }}</strong>
+          <p>{{ request_row.matric_number }} | {{ request_row.department_name }}</p>
+          <p>Status: {{ request_row.status|title }}</p>
+        </div>
+        {% if request_row.status == 'pending' %}
+        <div class="action-row">
+          <form method="post" action="{{ url_for('review_id_request', request_id=request_row.id) }}">
+            <input type="hidden" name="decision" value="approved">
+            <button type="submit">Approve</button>
+          </form>
+          <form method="post" action="{{ url_for('review_id_request', request_id=request_row.id) }}">
+            <input type="hidden" name="decision" value="rejected">
+            <button type="submit" class="button-danger">Reject</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="empty-state">No reprint requests available.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endif %}
+{% endblock %}

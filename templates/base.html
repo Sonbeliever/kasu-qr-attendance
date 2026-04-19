@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=smart-campus-1">
+  <link rel="icon" href="{{ url_for('static', filename='kasu.jpg') }}">
+</head>
+<body>
+  <div class="site-bg"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <a href="{{ url_for('home') if current_user else url_for('login') }}" class="brand">
+        <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="KASU logo">
+        <div>
+          <strong>{{ app_name }}</strong>
+          <span>Campus attendance, identity, and community</span>
+        </div>
+      </a>
+
+      {% if current_user %}
+      <nav class="nav-links">
+        <a href="{{ url_for('home') }}">Dashboard</a>
+        {% if current_user.role in ['super_admin', 'department_admin'] %}
+        <a href="{{ url_for('scan') }}">Attendance</a>
+        <a href="{{ url_for('history') }}">Reports</a>
+        {% endif %}
+        {% if current_user.role == 'student' %}
+        <a href="{{ url_for('my_attendance') }}">My Attendance</a>
+        {% endif %}
+        <a href="{{ url_for('community') }}">Community</a>
+        <a href="{{ url_for('id_card') }}">ID Card</a>
+        <a href="{{ url_for('change_password') }}">Password</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+      </nav>
+      {% endif %}
+    </header>
+
+    {% if current_user %}
+    <section class="identity-strip">
+      <div>
+        <p class="eyebrow">Signed in as</p>
+        <h1>{{ current_user.full_name }}</h1>
+      </div>
+      <div class="identity-pills">
+        <span class="pill">{{ current_user.role.replace('_', ' ')|title }}</span>
+        {% if current_user.department_name %}
+        <span class="pill pill-soft">{{ current_user.department_name }}</span>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <section class="flash-stack">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </section>
+      {% endif %}
+    {% endwith %}
+
+    <main class="page-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

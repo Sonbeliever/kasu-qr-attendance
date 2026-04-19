@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ app_name }} | Student Registration</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=smart-campus-1">
+</head>
+<body class="auth-page">
+  <div class="site-bg"></div>
+  <main class="auth-shell auth-shell-wide">
+    <section class="auth-panel auth-hero">
+      <p class="eyebrow">Student onboarding</p>
+      <h1>Create your campus identity.</h1>
+      <p class="lede">
+        Registration creates your student account, stores your department profile,
+        and prepares the QR code that will be reused for attendance and your ID card.
+      </p>
+      <div class="mini-list">
+        <span>Profile photo required</span>
+        <span>Matric number must be unique</span>
+        <span>Department is assigned at sign-up</span>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <p class="eyebrow">Student form</p>
+      <h2>Register</h2>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-stack">
+          {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endwith %}
+      <form method="post" enctype="multipart/form-data" class="stack-form">
+        <label>
+          Full name
+          <input type="text" name="full_name" required>
+        </label>
+        <label>
+          Matric number
+          <input type="text" name="matric_number" placeholder="KASU/SCE/23/CSC/0001" required>
+        </label>
+        <label>
+          Email
+          <input type="email" name="email" required>
+        </label>
+        <label>
+          Phone number
+          <input type="text" name="phone" required>
+        </label>
+        <label>
+          Department
+          <select name="department_id" required>
+            <option value="">Select department</option>
+            {% for department in departments %}
+            <option value="{{ department.id }}">{{ department.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Profile photo
+          <input type="file" name="profile_photo" accept=".png,.jpg,.jpeg,.webp" required>
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" required>
+        </label>
+        <label>
+          Confirm password
+          <input type="password" name="confirm_password" required>
+        </label>
+        <button type="submit">Create student account</button>
+      </form>
+      <p class="form-hint">
+        Already registered?
+        <a href="{{ url_for('login') }}">Back to login</a>
+      </p>
+    </section>
+  </main>
+</body>
+</html>

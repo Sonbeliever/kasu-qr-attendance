@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} | ID Card Center{% endblock %}
+
+{% block content %}
+{% if current_user.role == 'student' %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Student identity</p>
+    <h2>Generate your digital ID card, reuse the same QR code, and track reprint requests.</h2>
+  </div>
+  <div class="hero-actions">
+    {% if student.id_card_generated_at %}
+    <a class="button-link" href="{{ url_for('print_id_card', student_id=student.id) }}" target="_blank">Open print view</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="grid-two">
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Digital card</p>
+        <h3>Card preview</h3>
+      </div>
+    </div>
+    <div class="id-card-preview">
+      <div class="id-card-face">
+        <div class="id-card-header">
+          <span>Kaduna State University</span>
+          <strong>Student Identity Card</strong>
+        </div>
+        <div class="id-card-body">
+          <img src="{{ url_for('static', filename=student.profile_photo or 'kasu.jpg') }}" alt="Profile photo" class="id-photo">
+          <div class="id-meta">
+            <h4>{{ student.full_name }}</h4>
+            <p>{{ student.matric_number }}</p>
+            <p>{{ student.department_name }}</p>
+            <p>{{ student.phone }}</p>
+          </div>
+        </div>
+        <div class="id-card-qr">
+          {% if student.qr_path %}
+          <img src="{{ url_for('static', filename=student.qr_path) }}" alt="Student QR">
+          {% else %}
+          <span>QR pending</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="action-row">
+      <form method="post" action="{{ url_for('generate_id_card') }}">
+        <button type="submit">{{ 'Refresh digital card' if student.id_card_generated_at else 'Generate first ID card' }}</button>
+      </form>
+      {% if student.id_card_generated_at %}
+      <a class="button-link button-secondary" href="{{ url_for('print_id_card', student_id=student.id) }}" target="_blank">Print ID card</a>
+      {% endif %}
+    </div>
+    <p class="muted-line">
+      First generation is free. Approved reprints reuse the same QR code.
+      Reprints approved so far: {{ student.id_card_reprint_count }}.
+    </p>
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Reprint workflow</p>
+        <h3>Submit reprint request</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('request_id_reprint') }}" enctype="multipart/form-data" class="stack-form">
+      <label>
+        Upload receipt
+        <input type="file" name="receipt" accept=".png,.jpg,.jpeg,.webp,.pdf">
+      </label>
+      <label>
+        Note for admin
+        <textarea name="note" rows="4" placeholder="Optional note about the reprint request"></textarea>
+      </label>
+      <button type="submit">Submit reprint request</button>
+    </form>
+    <div class="table-wrap compact-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Requested</th>
+            <th>Status</th>
+            <th>Reviewer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in requests_rows %}
+          <tr>
+            <td>{{ row.requested_at }}</td>
+            <td>{{ row.status|title }}</td>
+            <td>{{ row.reviewer_name or '-' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="3" class="empty-state">No reprint requests submitted yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+{% else %}
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Approval queue</p>
+    <h2>Review student ID card reprint requests for the departments you can manage.</h2>
+  </div>
+</section>
+
+<section class="section-card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Matric</th>
+          <th>Department</th>
+          <th>Status</th>
+          <th>Receipt</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in requests_rows %}
+        <tr>
+          <td>{{ row.student_name }}</td>
+          <td>{{ row.matric_number }}</td>
+          <td>{{ row.department_name }}</td>
+          <td>{{ row.status|title }}</td>
+          <td><a href="{{ url_for('static', filename=row.receipt_path) }}" target="_blank">Open receipt</a></td>
+          <td class="action-row">
+            {% if row.status == 'pending' %}
+            <form method="post" action="{{ url_for('review_id_request', request_id=row.id) }}">
+              <input type="hidden" name="decision" value="approved">
+              <button type="submit">Approve</button>
+            </form>
+            <form method="post" action="{{ url_for('review_id_request', request_id=row.id) }}">
+              <input type="hidden" name="decision" value="rejected">
+              <button type="submit" class="button-danger">Reject</button>
+            </form>
+            {% else %}
+            <span class="muted-line">Reviewed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">No reprint requests available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

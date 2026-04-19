@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ student.full_name }} | ID Card</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=smart-campus-1">
+</head>
+<body class="print-page">
+  <main class="print-wrap">
+    <div class="id-card-face print-card">
+      <div class="id-card-header">
+        <span>Kaduna State University</span>
+        <strong>Student Identity Card</strong>
+      </div>
+      <div class="id-card-body">
+        <img src="{{ url_for('static', filename=student.profile_photo or 'kasu.jpg') }}" alt="Profile photo" class="id-photo">
+        <div class="id-meta">
+          <h4>{{ student.full_name }}</h4>
+          <p>{{ student.matric_number }}</p>
+          <p>{{ student.department_name }}</p>
+          <p>{{ student.phone }}</p>
+          <p>{{ student.email }}</p>
+        </div>
+      </div>
+      <div class="id-card-qr">
+        {% if student.qr_path %}
+        <img src="{{ url_for('static', filename=student.qr_path) }}" alt="Student QR">
+        {% endif %}
+      </div>
+    </div>
+    <button onclick="window.print()" class="print-button">Print card</button>
+  </main>
+</body>
+</html>

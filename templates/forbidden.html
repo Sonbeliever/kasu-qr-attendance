@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} | Access Denied{% endblock %}
+
+{% block content %}
+<section class="narrow-card center-card">
+  <p class="eyebrow">Access denied</p>
+  <h2>You do not have permission to open this page.</h2>
+  <p class="lede">If you believe this is a mistake, log out and sign in with an account that has the right role or department access.</p>
+  <a class="button-link" href="{{ url_for('home') if current_user else url_for('login') }}">Return</a>
+</section>
+{% endblock %}

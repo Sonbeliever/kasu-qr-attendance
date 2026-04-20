@@ -2,3 +2,8 @@ __pycache__/
 *.py[cod]
 static/uploads/
 smoke_test*.db
+media/
+data/
+*.db-shm
+*.db-wal
+*.db-journal

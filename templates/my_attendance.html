@@ -22,7 +22,7 @@
       </div>
     </div>
     <div class="profile-card">
-      <img src="{{ url_for('static', filename=student.profile_photo or 'kasu.jpg') }}" alt="Profile photo" class="profile-photo">
+      <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="profile-photo">
       <div>
         <strong>{{ student.full_name }}</strong>
         <p>{{ student.matric_number }}</p>

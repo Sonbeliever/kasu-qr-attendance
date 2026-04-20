@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import os
 import re
+import shutil
 import sqlite3
 import uuid
 import zipfile
@@ -23,6 +24,7 @@ from flask import (
     render_template,
     request,
     send_file,
+    send_from_directory,
     session,
     url_for,
 )
@@ -37,11 +39,30 @@ from werkzeug.utils import secure_filename
 APP_NAME = "Smart Campus Management System"
 APP_TZ = ZoneInfo("Africa/Lagos")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_FILE = os.path.join(BASE_DIR, os.getenv("SMART_CAMPUS_DB", "attendance.db"))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-QR_DIR = os.path.join(STATIC_DIR, "qr")
-PROFILE_UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads", "profiles")
-RECEIPT_UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads", "receipts")
+
+
+def resolve_rooted_path(value: str | None, default_value: str, root_dir: str) -> str:
+    candidate = value or default_value
+    if os.path.isabs(candidate):
+        return os.path.abspath(candidate)
+    return os.path.abspath(os.path.join(root_dir, candidate))
+
+
+DATA_ROOT = resolve_rooted_path(
+    os.getenv("SMART_CAMPUS_DATA_ROOT"),
+    os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or ".",
+    BASE_DIR,
+)
+MEDIA_ROOT = resolve_rooted_path(os.getenv("SMART_CAMPUS_MEDIA_ROOT"), "media", DATA_ROOT)
+DB_FILE = resolve_rooted_path(os.getenv("SMART_CAMPUS_DB"), "attendance.db", DATA_ROOT)
+QR_DIR = os.path.join(MEDIA_ROOT, "qr")
+PROFILE_UPLOAD_DIR = os.path.join(MEDIA_ROOT, "uploads", "profiles")
+RECEIPT_UPLOAD_DIR = os.path.join(MEDIA_ROOT, "uploads", "receipts")
+LEGACY_DB_FILE = os.path.join(BASE_DIR, "attendance.db")
+LEGACY_QR_DIR = os.path.join(STATIC_DIR, "qr")
+LEGACY_PROFILE_UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads", "profiles")
+LEGACY_RECEIPT_UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads", "receipts")
 LOGO_PATH = os.path.join(BASE_DIR, "logo.jpg")
 DEFAULT_AVATAR = "kasu.jpg"
 
@@ -80,9 +101,38 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 def ensure_directories() -> None:
     os.makedirs(STATIC_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    os.makedirs(MEDIA_ROOT, exist_ok=True)
     os.makedirs(QR_DIR, exist_ok=True)
     os.makedirs(PROFILE_UPLOAD_DIR, exist_ok=True)
     os.makedirs(RECEIPT_UPLOAD_DIR, exist_ok=True)
+
+
+def seed_storage_folder(source_dir: str, destination_dir: str) -> None:
+    if not os.path.isdir(source_dir):
+        return
+
+    for current_root, _dirs, files in os.walk(source_dir):
+        relative_root = os.path.relpath(current_root, source_dir)
+        target_root = destination_dir if relative_root == "." else os.path.join(destination_dir, relative_root)
+        os.makedirs(target_root, exist_ok=True)
+        for file_name in files:
+            source_path = os.path.join(current_root, file_name)
+            destination_path = os.path.join(target_root, file_name)
+            if not os.path.exists(destination_path):
+                shutil.copy2(source_path, destination_path)
+
+
+def bootstrap_storage() -> None:
+    if DATA_ROOT == BASE_DIR or os.getenv("SMART_CAMPUS_SKIP_BOOTSTRAP") == "1":
+        return
+
+    if not os.path.exists(DB_FILE) and os.path.exists(LEGACY_DB_FILE):
+        shutil.copy2(LEGACY_DB_FILE, DB_FILE)
+
+    seed_storage_folder(LEGACY_QR_DIR, QR_DIR)
+    seed_storage_folder(LEGACY_PROFILE_UPLOAD_DIR, PROFILE_UPLOAD_DIR)
+    seed_storage_folder(LEGACY_RECEIPT_UPLOAD_DIR, RECEIPT_UPLOAD_DIR)
 
 
 def get_conn() -> sqlite3.Connection:
@@ -113,6 +163,48 @@ def absolute_static_path(relative_path: str) -> str:
     return os.path.join(STATIC_DIR, normalized.replace("/", os.sep))
 
 
+def absolute_media_path(relative_path: str) -> str:
+    normalized = safe_relative_path(relative_path)
+    return os.path.join(MEDIA_ROOT, normalized.replace("/", os.sep))
+
+
+def resolve_stored_file_path(relative_path: str | None) -> str | None:
+    if not relative_path:
+        return None
+
+    normalized = safe_relative_path(relative_path)
+    media_path = absolute_media_path(normalized)
+    if os.path.exists(media_path):
+        return media_path
+
+    legacy_path = absolute_static_path(normalized)
+    if os.path.exists(legacy_path):
+        return legacy_path
+
+    return None
+
+
+def stored_file_exists(relative_path: str | None) -> bool:
+    return bool(resolve_stored_file_path(relative_path))
+
+
+def media_url(relative_path: str | None) -> str | None:
+    if not relative_path:
+        return None
+
+    normalized = safe_relative_path(relative_path)
+    media_path = absolute_media_path(normalized)
+    if os.path.exists(media_path):
+        return url_for("media_file", relative_path=normalized)
+    return url_for("static", filename=normalized)
+
+
+def profile_image_url(relative_path: str | None) -> str:
+    if not relative_path:
+        return url_for("static", filename=DEFAULT_AVATAR)
+    return media_url(relative_path)
+
+
 def allowed_file(filename: str, allowed_extensions: set[str]) -> bool:
     ext = os.path.splitext(filename or "")[1].lower()
     return ext in allowed_extensions
@@ -129,7 +221,7 @@ def save_upload(file_storage, relative_folder: str, prefix: str, allowed_extensi
     _, extension = os.path.splitext(original_name)
     filename = f"{prefix}_{uuid.uuid4().hex[:12]}{extension.lower()}"
     relative_path = safe_relative_path(os.path.join(relative_folder, filename))
-    destination = absolute_static_path(relative_path)
+    destination = absolute_media_path(relative_path)
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     file_storage.save(destination)
     return relative_path
@@ -158,6 +250,7 @@ def normalize_department_code(value: str | None) -> str:
 
 def initialize_db() -> None:
     ensure_directories()
+    bootstrap_storage()
     conn = get_conn()
     conn.executescript(
         """
@@ -432,16 +525,14 @@ def ensure_student_qr(account_id: int) -> sqlite3.Row:
 
     qr_token = student["qr_token"] or f"SCMS:{uuid.uuid4().hex}"
     qr_path = student["qr_path"]
-    needs_file = True
-    if qr_path:
-        needs_file = not os.path.exists(absolute_static_path(qr_path))
+    needs_file = not stored_file_exists(qr_path)
 
     if needs_file:
         safe_matric = re.sub(r"[^A-Za-z0-9]+", "_", student["matric_number"] or f"student_{student['id']}").strip("_")
         filename = f"{safe_matric}_{uuid.uuid4().hex[:8]}.png"
         qr_path = safe_relative_path(os.path.join("qr", filename))
         qr_image = qrcode.make(qr_token)
-        qr_image.save(absolute_static_path(qr_path))
+        qr_image.save(absolute_media_path(qr_path))
 
     conn.execute(
         "UPDATE accounts SET qr_token = ?, qr_path = ?, updated_at = ? WHERE id = ?",
@@ -470,6 +561,8 @@ def inject_globals():
         "app_name": APP_NAME,
         "current_user": current_user(),
         "current_year": now_local().year,
+        "media_url": media_url,
+        "profile_image_url": profile_image_url,
     }
 
 
@@ -517,6 +610,21 @@ def can_access_department(user: sqlite3.Row, department_id: int | None) -> bool:
 def require_department_access(user: sqlite3.Row, department_id: int | None) -> None:
     if not can_access_department(user, department_id):
         abort(403)
+
+
+@app.route("/media/<path:relative_path>")
+@login_required
+def media_file(relative_path: str):
+    normalized = safe_relative_path(relative_path)
+    media_path = absolute_media_path(normalized)
+    if os.path.exists(media_path):
+        return send_from_directory(MEDIA_ROOT, normalized)
+
+    legacy_path = absolute_static_path(normalized)
+    if os.path.exists(legacy_path):
+        return redirect(url_for("static", filename=normalized))
+
+    abort(404)
 
 
 def require_student_owner_or_admin(student_id: int) -> sqlite3.Row:
@@ -2662,6 +2770,22 @@ def api_course_average():
     )
 
 
+@app.route("/health")
+def health():
+    status = {
+        "status": "ok",
+        "time": now_iso(),
+        "storage": "volume" if DATA_ROOT != BASE_DIR else "local",
+    }
+    try:
+        conn = get_conn()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+    except sqlite3.Error as exc:
+        return jsonify({**status, "status": "error", "error": str(exc)}), 500
+    return jsonify(status)
+
+
 @app.errorhandler(403)
 def forbidden(_error):
     return render_template("forbidden.html"), 403
@@ -2671,4 +2795,8 @@ initialize_db()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "5000")),
+        debug=os.getenv("FLASK_DEBUG") == "1",
+    )

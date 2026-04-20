@@ -14,7 +14,7 @@
         <strong>Student Identity Card</strong>
       </div>
       <div class="id-card-body">
-        <img src="{{ url_for('static', filename=student.profile_photo or 'kasu.jpg') }}" alt="Profile photo" class="id-photo">
+        <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="id-photo">
         <div class="id-meta">
           <h4>{{ student.full_name }}</h4>
           <p>{{ student.matric_number }}</p>
@@ -25,7 +25,7 @@
       </div>
       <div class="id-card-qr">
         {% if student.qr_path %}
-        <img src="{{ url_for('static', filename=student.qr_path) }}" alt="Student QR">
+        <img src="{{ media_url(student.qr_path) }}" alt="Student QR">
         {% endif %}
       </div>
     </div>

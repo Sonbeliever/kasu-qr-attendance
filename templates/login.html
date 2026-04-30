@@ -4,32 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ app_name }} | Login</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=smart-campus-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=smart-campus-2">
 </head>
 <body class="auth-page">
   <div class="site-bg"></div>
   <main class="auth-shell">
-    <section class="auth-panel auth-hero">
-      <p class="eyebrow">Kaduna State University</p>
-      <h1>One campus system for attendance, ID cards, and student community.</h1>
-      <p class="lede">
-        Super admins manage departments, department admins run attendance and approvals,
-        and students track performance with a single QR identity.
-      </p>
+    <section class="auth-panel auth-hero landing-hero">
+      <div class="brand-lockup">
+        <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="KASU Logo" class="landing-logo">
+        <p class="eyebrow">Kaduna State University</p>
+      </div>
+      <h1>Smart Campus Portal</h1>
+      <p class="lede">Attendance, student ID, and campus access in one place.</p>
       <div class="auth-notes">
-        <div class="mini-card">
-          <strong>Default super admin</strong>
-          <span>superadmin / admin123</span>
-        </div>
-        <div class="mini-card">
-          <strong>Student onboarding</strong>
-          <span>Registration opens after departments are created.</span>
-        </div>
+        <span class="mini-pill">Fast QR attendance</span>
+        <span class="mini-pill">Secure role access</span>
+        <span class="mini-pill">Student ID center</span>
       </div>
     </section>
 
-    <section class="auth-panel">
-      <p class="eyebrow">Welcome back</p>
+    <section class="auth-panel login-panel">
+      <p class="eyebrow">Welcome</p>
       <h2>Sign in</h2>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -42,18 +37,18 @@
       {% endwith %}
       <form method="post" class="stack-form">
         <label>
-          Username, email, or matric number
-          <input type="text" name="identifier" placeholder="superadmin or KASU/SCE/..." required>
+          Username / Email / Matric Number
+          <input type="text" name="identifier" placeholder="Enter your account ID" required>
         </label>
         <label>
           Password
-          <input type="password" name="password" placeholder="Enter password" required>
+          <input type="password" name="password" placeholder="Enter your password" required>
         </label>
-        <button type="submit">Login</button>
+        <button type="submit">Continue</button>
       </form>
       <p class="form-hint">
-        Student without an account?
-        <a href="{{ url_for('register') }}">Register here</a>
+        New student?
+        <a href="{{ url_for('register') }}">Create account</a>
       </p>
     </section>
   </main>

@@ -248,6 +248,100 @@ def normalize_department_code(value: str | None) -> str:
     return cleaned.upper()
 
 
+def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return bool(row)
+
+
+def table_has_column(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+    if not table_exists(conn, table_name):
+        return False
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return any(row["name"] == column_name for row in rows)
+
+
+def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+    if not table_has_column(conn, table_name, column_name):
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
+
+
+def apply_legacy_schema_migrations(conn: sqlite3.Connection) -> None:
+    created_at = now_iso()
+    default_department = conn.execute("SELECT id FROM departments ORDER BY id ASC LIMIT 1").fetchone()
+    if not default_department:
+        conn.execute(
+            """
+            INSERT INTO departments (name, code, description, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("General Department", "GENERAL", "Auto-created for legacy data migration", created_at),
+        )
+        default_department_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+    else:
+        default_department_id = int(default_department["id"])
+
+    ensure_column(conn, "accounts", "role", "TEXT NOT NULL DEFAULT 'student'")
+    ensure_column(conn, "accounts", "department_id", "INTEGER")
+    ensure_column(conn, "accounts", "matric_number", "TEXT")
+    ensure_column(conn, "accounts", "profile_photo", "TEXT")
+    ensure_column(conn, "accounts", "qr_token", "TEXT")
+    ensure_column(conn, "accounts", "qr_path", "TEXT")
+    ensure_column(conn, "accounts", "id_card_generated_at", "TEXT")
+    ensure_column(conn, "accounts", "id_card_reprint_count", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column(conn, "accounts", "is_active", "INTEGER NOT NULL DEFAULT 1")
+    ensure_column(conn, "accounts", "created_at", "TEXT")
+    ensure_column(conn, "accounts", "updated_at", "TEXT")
+
+    ensure_column(conn, "courses", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "courses", "code", "TEXT")
+    ensure_column(conn, "courses", "title", "TEXT")
+    ensure_column(conn, "courses", "semester", "TEXT")
+    ensure_column(conn, "courses", "created_by", "INTEGER")
+    ensure_column(conn, "courses", "created_at", "TEXT")
+    if table_has_column(conn, "courses", "course_name"):
+        conn.execute("UPDATE courses SET title = COALESCE(NULLIF(title, ''), course_name)")
+        conn.execute("UPDATE courses SET code = COALESCE(NULLIF(code, ''), UPPER(REPLACE(course_name, ' ', '')))")
+    conn.execute(
+        """
+        UPDATE courses
+        SET department_id = COALESCE(department_id, ?),
+            code = COALESCE(NULLIF(code, ''), 'COURSE_' || id),
+            title = COALESCE(NULLIF(title, ''), code),
+            created_at = COALESCE(created_at, ?)
+        """,
+        (default_department_id, created_at),
+    )
+
+    ensure_column(conn, "attendance_sessions", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "attendance_sessions", "course_id", "INTEGER")
+    ensure_column(conn, "attendance_sessions", "session_type", "TEXT NOT NULL DEFAULT 'general'")
+    ensure_column(conn, "attendance_sessions", "title", "TEXT NOT NULL DEFAULT 'General Attendance'")
+    ensure_column(conn, "attendance_sessions", "session_date", "TEXT NOT NULL DEFAULT ''")
+    ensure_column(conn, "attendance_sessions", "start_time", "TEXT NOT NULL DEFAULT ''")
+    ensure_column(conn, "attendance_sessions", "started_by", "INTEGER")
+    ensure_column(conn, "attendance_sessions", "status", "TEXT NOT NULL DEFAULT 'active'")
+    ensure_column(conn, "attendance_sessions", "created_at", "TEXT")
+    ensure_column(conn, "attendance_sessions", "closed_at", "TEXT")
+
+    ensure_column(conn, "attendance_records", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "attendance_records", "student_id", "INTEGER")
+    ensure_column(conn, "attendance_records", "marked_at", "TEXT")
+
+    ensure_column(conn, "community_posts", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "community_posts", "visibility", "TEXT NOT NULL DEFAULT 'department'")
+    ensure_column(conn, "community_posts", "moderation_status", "TEXT NOT NULL DEFAULT 'clean'")
+    ensure_column(conn, "community_posts", "created_at", "TEXT")
+
+    ensure_column(conn, "id_card_requests", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "community_comments", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "community_likes", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "community_poll_options", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+    ensure_column(conn, "community_poll_votes", "department_id", f"INTEGER NOT NULL DEFAULT {default_department_id}")
+
+
 def initialize_db() -> None:
     ensure_directories()
     bootstrap_storage()
@@ -329,6 +423,7 @@ def initialize_db() -> None:
         );
         """
     )
+    apply_legacy_schema_migrations(conn)
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS id_card_requests (
@@ -641,6 +736,36 @@ def require_student_owner_or_admin(student_id: int) -> sqlite3.Row:
     if user["role"] in {"department_admin", "super_admin"}:
         require_department_access(user, student["department_id"])
     return student
+
+
+def community_post_is_accessible(user: sqlite3.Row, post: sqlite3.Row | None) -> bool:
+    if not post:
+        return False
+    if user["role"] == "super_admin":
+        return True
+    if post["visibility"] == "all":
+        return True
+    return bool(user["department_id"] and user["department_id"] == post["department_id"])
+
+
+def require_accessible_community_post(
+    conn: sqlite3.Connection, user: sqlite3.Row, post_id: int
+) -> sqlite3.Row:
+    post = conn.execute(
+        """
+        SELECT id, department_id, visibility, moderation_status
+        FROM community_posts
+        WHERE id = ?
+        """,
+        (post_id,),
+    ).fetchone()
+    if not post:
+        abort(404)
+    if not community_post_is_accessible(user, post):
+        abort(403)
+    if user["role"] == "student" and post["moderation_status"] not in VISIBLE_MODERATION_STATUSES:
+        abort(403)
+    return post
 
 
 def moderate_text(*parts: str) -> tuple[str, str | None]:
@@ -2291,6 +2416,251 @@ def download_by_date():
     )
 
 
+def _legacy_admin_guard() -> sqlite3.Row:
+    user = current_user()
+    if not user or user["role"] not in {"super_admin", "department_admin"}:
+        abort(403)
+    return user
+
+
+def _legacy_department_scope(user: sqlite3.Row, raw_department_id: str | None) -> int | None:
+    department_id = parse_department_for_request(user, raw_department_id)
+    if department_id:
+        require_department_access(user, department_id)
+    return department_id
+
+
+def _legacy_records_query(filters: dict) -> list[sqlite3.Row]:
+    clauses = ["1 = 1"]
+    params: list = []
+    if filters.get("department_id"):
+        clauses.append("ar.department_id = ?")
+        params.append(filters["department_id"])
+    if filters.get("date"):
+        clauses.append("s.session_date = ?")
+        params.append(filters["date"])
+    if filters.get("course"):
+        clauses.append("LOWER(COALESCE(c.code, 'general')) = ?")
+        params.append(filters["course"])
+
+    conn = get_conn()
+    rows = conn.execute(
+        f"""
+        SELECT ar.id, st.matric_number AS ID, st.full_name AS Name,
+               s.session_date AS Date, s.start_time AS Time,
+               COALESCE(c.code, 'General') AS Course
+        FROM attendance_records ar
+        JOIN attendance_sessions s ON s.id = ar.session_id
+        JOIN accounts st ON st.id = ar.student_id
+        LEFT JOIN courses c ON c.id = ar.course_id
+        WHERE {' AND '.join(clauses)}
+        ORDER BY s.session_date DESC, ar.marked_at DESC
+        """,
+        params,
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+@app.route("/history_by_date")
+@login_required
+def history_by_date():
+    user = current_user()
+    filters = {
+        "department_id": _legacy_department_scope(user, request.args.get("department_id")),
+        "date": normalize_text(request.args.get("date")),
+        "course": normalize_text(request.args.get("course")).lower(),
+    }
+    rows = _legacy_records_query(filters)
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route("/delete_history", methods=["POST"])
+@login_required
+def delete_history():
+    user = _legacy_admin_guard()
+    department_id = _legacy_department_scope(user, request.form.get("department_id") or request.args.get("department_id"))
+    conn = get_conn()
+    if user["role"] == "super_admin" and not department_id:
+        conn.execute("DELETE FROM attendance_records")
+    else:
+        target_department = department_id or user["department_id"]
+        conn.execute("DELETE FROM attendance_records WHERE department_id = ?", (target_department,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Attendance history deleted."})
+
+
+@app.route("/delete_record", methods=["POST"])
+@login_required
+def delete_record_legacy():
+    user = _legacy_admin_guard()
+    payload = request.get_json(silent=True) or {}
+    legacy_id = normalize_matric(payload.get("ID"))
+    date_value = normalize_text(payload.get("Date"))
+    time_value = normalize_text(payload.get("Time"))
+    department_id = _legacy_department_scope(user, payload.get("department_id"))
+    if not all([legacy_id, date_value]):
+        return jsonify({"success": False, "message": "ID and Date are required."}), 400
+
+    conn = get_conn()
+    query = """
+        SELECT ar.id, ar.department_id
+        FROM attendance_records ar
+        JOIN attendance_sessions s ON s.id = ar.session_id
+        JOIN accounts st ON st.id = ar.student_id
+        WHERE UPPER(st.matric_number) = ? AND s.session_date = ?
+    """
+    params: list = [legacy_id, date_value]
+    if time_value:
+        query += " AND s.start_time = ?"
+        params.append(time_value)
+    if department_id:
+        query += " AND ar.department_id = ?"
+        params.append(department_id)
+    elif user["role"] == "department_admin":
+        query += " AND ar.department_id = ?"
+        params.append(user["department_id"])
+    query += " ORDER BY ar.id DESC LIMIT 1"
+    record = conn.execute(query, params).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({"success": False, "message": "Record not found."}), 404
+    require_department_access(user, record["department_id"])
+    conn.execute("DELETE FROM attendance_records WHERE id = ?", (record["id"],))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+@app.route("/set_course", methods=["POST"])
+@login_required
+def set_course_legacy():
+    user = _legacy_admin_guard()
+    payload = request.get_json(silent=True) or {}
+    mode = normalize_text(payload.get("mode") or "general").lower()
+    course_query = normalize_text(payload.get("course"))
+    department_id = _legacy_department_scope(user, payload.get("department_id"))
+    target_department = department_id or user["department_id"]
+    if not target_department:
+        return jsonify({"message": "Department is required."}), 400
+
+    conn = get_conn()
+    now = now_local()
+    try:
+        conn.execute(
+            "UPDATE attendance_sessions SET status = 'closed', closed_at = ? WHERE department_id = ? AND status = 'active'",
+            (now.isoformat(timespec="seconds"), target_department),
+        )
+        if mode == "course":
+            if not course_query:
+                conn.commit()
+                return jsonify({"message": "Course required for course mode"}), 400
+            course = conn.execute(
+                """
+                SELECT * FROM courses
+                WHERE department_id = ?
+                  AND (LOWER(code) = LOWER(?) OR LOWER(title) = LOWER(?))
+                LIMIT 1
+                """,
+                (target_department, course_query, course_query),
+            ).fetchone()
+            if not course:
+                code = re.sub(r"[^A-Za-z0-9]+", "", course_query.upper())[:10] or f"C{uuid.uuid4().hex[:5].upper()}"
+                conn.execute(
+                    """
+                    INSERT INTO courses (department_id, code, title, created_by, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (target_department, code, course_query, user["id"], now_iso()),
+                )
+                course = conn.execute("SELECT * FROM courses WHERE id = last_insert_rowid()").fetchone()
+            conn.execute(
+                """
+                INSERT INTO attendance_sessions (
+                    department_id, course_id, session_type, title, session_date,
+                    start_time, started_by, status, created_at
+                ) VALUES (?, ?, 'course', ?, ?, ?, ?, 'active', ?)
+                """,
+                (
+                    target_department,
+                    course["id"],
+                    f"{course['code']} Attendance",
+                    now.strftime("%Y-%m-%d"),
+                    now.strftime("%H:%M:%S"),
+                    user["id"],
+                    now.isoformat(timespec="seconds"),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({"message": "Course and mode updated", "course": course_query if mode == "course" else "", "mode": mode})
+
+
+@app.route("/get_course", methods=["GET"])
+@login_required
+def get_course_legacy():
+    user = current_user()
+    department_id = _legacy_department_scope(user, request.args.get("department_id"))
+    target_department = department_id or user["department_id"]
+    if not target_department:
+        return jsonify({"active": False, "course": "", "mode": "general", "course_id": None})
+    active = get_active_session_for_department(target_department)
+    if not active or active["session_type"] != "course":
+        return jsonify({"active": False, "course": "", "mode": "general", "course_id": None})
+    return jsonify(
+        {
+            "active": True,
+            "course": active["course_code"] or active["course_title"] or "",
+            "mode": "course",
+            "course_id": active["course_id"],
+        }
+    )
+
+
+@app.route("/clear_course", methods=["POST"])
+@login_required
+def clear_course_legacy():
+    user = _legacy_admin_guard()
+    payload = request.get_json(silent=True) or {}
+    department_id = _legacy_department_scope(user, payload.get("department_id") or request.args.get("department_id"))
+    target_department = department_id or user["department_id"]
+    if not target_department:
+        return jsonify({"message": "Department is required."}), 400
+    conn = get_conn()
+    conn.execute(
+        "UPDATE attendance_sessions SET status = 'closed', closed_at = ? WHERE department_id = ? AND status = 'active'",
+        (now_iso(), target_department),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Session cleared (no active course)"})
+
+
+@app.route("/static/qr/<path:filename>")
+def qr_file(filename: str):
+    return redirect(url_for("media_file", relative_path=f"qr/{safe_relative_path(filename)}"))
+
+
+@app.route("/generate_qr", methods=["POST"])
+def generate_qr_legacy():
+    payload = request.get_json(silent=True) or {}
+    matric = normalize_matric(payload.get("id") or payload.get("matric_number"))
+    full_name = normalize_text(payload.get("name"))
+    if not matric or not full_name:
+        return jsonify({"message": "Name and Matric number are required"}), 400
+
+    qr_data = f"{matric}|{full_name}"
+    filename = f"{safe_relative_path(matric)}_{uuid.uuid4().hex[:10]}.png"
+    relative_path = safe_relative_path(os.path.join("qr", filename))
+    destination = absolute_media_path(relative_path)
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    qrcode.make(qr_data).save(destination)
+    return jsonify({"message": "QR Code generated!", "qr_path": url_for("qr_file", filename=filename)})
+
+
 @app.route("/my_attendance")
 @roles_required("student")
 def my_attendance():
@@ -2536,10 +2906,11 @@ def create_community_post():
 def toggle_like(post_id: int):
     user = current_user()
     conn = get_conn()
-    post = conn.execute("SELECT id FROM community_posts WHERE id = ?", (post_id,)).fetchone()
-    if not post:
+    try:
+        require_accessible_community_post(conn, user, post_id)
+    except Exception:
         conn.close()
-        abort(404)
+        raise
     existing = conn.execute(
         "SELECT id FROM community_likes WHERE post_id = ? AND user_id = ?",
         (post_id, user["id"]),
@@ -2569,10 +2940,11 @@ def add_comment(post_id: int):
         return redirect(url_for("community"))
 
     conn = get_conn()
-    post = conn.execute("SELECT id FROM community_posts WHERE id = ?", (post_id,)).fetchone()
-    if not post:
+    try:
+        require_accessible_community_post(conn, user, post_id)
+    except Exception:
         conn.close()
-        abort(404)
+        raise
     moderation_status, moderation_reason = moderate_text(body)
     conn.execute(
         """
@@ -2612,6 +2984,11 @@ def vote_poll(post_id: int):
         return redirect(url_for("community"))
 
     conn = get_conn()
+    try:
+        require_accessible_community_post(conn, user, post_id)
+    except Exception:
+        conn.close()
+        raise
     option = conn.execute(
         """
         SELECT o.id

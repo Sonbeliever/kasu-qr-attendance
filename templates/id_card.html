@@ -25,26 +25,40 @@
       </div>
     </div>
     <div class="id-card-preview">
-      <div class="id-card-face">
-        <div class="id-card-header">
-          <span>Kaduna State University</span>
-          <strong>Student Identity Card</strong>
-        </div>
-        <div class="id-card-body">
-          <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="id-photo">
-          <div class="id-meta">
-            <h4>{{ student.full_name }}</h4>
-            <p>{{ student.matric_number }}</p>
-            <p>{{ student.department_name }}</p>
-            <p>{{ student.phone }}</p>
+      <div class="id-card-stack">
+        <div class="id-card-face id-card-front">
+          <div class="id-front-top">KADUNA STATE UNIVERSITY</div>
+          <div class="id-front-body">
+            <div class="id-front-logo-wrap">
+              <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="KASU logo" class="id-front-logo">
+            </div>
+            <div class="id-card-body">
+              <div class="id-meta">
+                <p><strong>Name:</strong> {{ student.full_name }}</p>
+                <p><strong>Reg Number:</strong> {{ student.matric_number }}</p>
+                <p><strong>Department:</strong> {{ student.department_name }}</p>
+                <p><strong>Phone Number:</strong> {{ student.phone }}</p>
+              </div>
+              <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="id-photo">
+            </div>
           </div>
+          <div class="id-front-bottom">STUDENT IDENTITY CARD</div>
         </div>
-        <div class="id-card-qr">
-          {% if student.qr_path %}
-          <img src="{{ media_url(student.qr_path) }}" alt="Student QR">
-          {% else %}
-          <span>QR pending</span>
-          {% endif %}
+
+        <div class="id-card-face id-card-back">
+          <h4>IMPORTANT</h4>
+          <p class="id-back-note">This card is property of Kaduna State University and must be returned if found.</p>
+          <p><strong>EMERGENCY CONTACT:</strong> Kaduna State University</p>
+          <p><strong>Address:</strong> Tafawa Balewa Way, Kaduna</p>
+          <div class="id-card-qr">
+            {% if student.qr_path %}
+            <img src="{{ media_url(student.qr_path) }}" alt="Student QR">
+            {% else %}
+            <span>QR pending</span>
+            {% endif %}
+          </div>
+          <p class="id-scan-hint">Scan QR to verify identity</p>
+          <div class="id-signature-line">ID HOLDER SIGNATURE</div>
         </div>
       </div>
     </div>

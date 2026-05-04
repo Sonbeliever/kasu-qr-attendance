@@ -41,6 +41,7 @@ APP_NAME = "Smart Campus Management System"
 APP_TZ = ZoneInfo("Africa/Lagos")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 
 app = Flask(
     __name__,

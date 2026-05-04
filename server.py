@@ -42,6 +42,11 @@ APP_TZ = ZoneInfo("Africa/Lagos")
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+app = Flask(
+    __name__,
+    template_folder=TEMPLATE_DIR,
+    static_folder=STATIC_DIR
+)
 
 def resolve_rooted_path(value: str | None, default_value: str, root_dir: str) -> str:
     candidate = value or default_value

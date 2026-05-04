@@ -1,134 +1,139 @@
 {% extends "base.html" %}
 
 {% block title %}{{ app_name }} | ID Card Center{% endblock %}
+{% block page_label %}Student Identity{% endblock %}
+{% block page_heading %}ID Card Center{% endblock %}
+{% block page_description %}Generate your digital ID card, reuse the same QR code, and manage reprint workflows from one page.{% endblock %}
+{% block page_tools %}
+  {% if current_user.role == 'student' and student.id_card_generated_at %}
+  <a class="button-link" href="{{ url_for('print_id_card', student_id=student.id, v='smart-campus-8') }}" target="_blank">Open print view</a>
+  {% endif %}
+{% endblock %}
 
 {% block content %}
 {% if current_user.role == 'student' %}
-<section class="hero-card">
-  <div>
-    <p class="eyebrow">Student identity</p>
-    <h2>Generate your digital ID card, reuse the same QR code, and track reprint requests.</h2>
-  </div>
-  <div class="hero-actions">
-    {% if student.id_card_generated_at %}
-    <a class="button-link" href="{{ url_for('print_id_card', student_id=student.id) }}" target="_blank">Open print view</a>
-    {% endif %}
-  </div>
-</section>
-
-<section class="grid-two">
-  <article class="section-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Digital card</p>
-        <h3>Card preview</h3>
-      </div>
-    </div>
-    <div class="id-card-preview">
-      <div class="id-card-stack">
-        <div class="id-card-face id-card-front">
-          <div class="id-front-top">KADUNA STATE UNIVERSITY</div>
-          <div class="id-front-body">
-            <div class="id-front-logo-wrap">
-              <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="KASU logo" class="id-front-logo">
-            </div>
-            <div class="id-card-body">
-              <div class="id-meta">
-                <p><strong>Name:</strong> {{ student.full_name }}</p>
-                <p><strong>Reg Number:</strong> {{ student.matric_number }}</p>
-                <p><strong>Department:</strong> {{ student.department_name }}</p>
-                <p><strong>Phone Number:</strong> {{ student.phone }}</p>
-              </div>
-              <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="id-photo">
-            </div>
-          </div>
-          <div class="id-front-bottom">STUDENT IDENTITY CARD</div>
-        </div>
-
-        <div class="id-card-face id-card-back">
-          <h4>IMPORTANT</h4>
-          <p class="id-back-note">This card is property of Kaduna State University and must be returned if found.</p>
-          <p><strong>EMERGENCY CONTACT:</strong> Kaduna State University</p>
-          <p><strong>Address:</strong> Tafawa Balewa Way, Kaduna</p>
-          <div class="id-card-qr">
-            {% if student.qr_path %}
-            <img src="{{ media_url(student.qr_path) }}" alt="Student QR">
-            {% else %}
-            <span>QR pending</span>
-            {% endif %}
-          </div>
-          <p class="id-scan-hint">Scan QR to verify identity</p>
-          <div class="id-signature-line">ID HOLDER SIGNATURE</div>
+<section class="dashboard-board">
+  <div class="dashboard-main">
+    <article class="section-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Digital Card</p>
+          <h3>Card preview</h3>
         </div>
       </div>
-    </div>
-    <div class="action-row">
-      <form method="post" action="{{ url_for('generate_id_card') }}">
-        <button type="submit">{{ 'Refresh digital card' if student.id_card_generated_at else 'Generate first ID card' }}</button>
+      <div class="id-card-preview id-card-preview-wide">
+        <div class="id-card-stack">
+          {% set print_mode = false %}
+          {% include "_id_card_faces.html" %}
+        </div>
+      </div>
+    </article>
+
+    <article class="section-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Reprint Workflow</p>
+          <h3>Submit reprint request</h3>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('request_id_reprint') }}" enctype="multipart/form-data" class="form-grid">
+        <label class="span-2">
+          Upload receipt
+          <input type="file" name="receipt" accept=".png,.jpg,.jpeg,.webp,.pdf">
+        </label>
+        <label class="span-2">
+          Note for admin
+          <textarea name="note" rows="4" placeholder="Optional note about the reprint request"></textarea>
+        </label>
+        <button type="submit">Submit reprint request</button>
       </form>
-      {% if student.id_card_generated_at %}
-      <a class="button-link button-secondary" href="{{ url_for('print_id_card', student_id=student.id) }}" target="_blank">Print ID card</a>
-      {% endif %}
-    </div>
-    <p class="muted-line">
-      First generation is free. Approved reprints reuse the same QR code.
-      Reprints approved so far: {{ student.id_card_reprint_count }}.
-    </p>
-  </article>
-
-  <article class="section-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Reprint workflow</p>
-        <h3>Submit reprint request</h3>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Requested</th>
+              <th>Status</th>
+              <th>Reviewer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in requests_rows %}
+            <tr>
+              <td>{{ row.requested_at }}</td>
+              <td>{{ row.status|title }}</td>
+              <td>{{ row.reviewer_name or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="3" class="empty-state">No reprint requests submitted yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    </div>
-    <form method="post" action="{{ url_for('request_id_reprint') }}" enctype="multipart/form-data" class="stack-form">
-      <label>
-        Upload receipt
-        <input type="file" name="receipt" accept=".png,.jpg,.jpeg,.webp,.pdf">
-      </label>
-      <label>
-        Note for admin
-        <textarea name="note" rows="4" placeholder="Optional note about the reprint request"></textarea>
-      </label>
-      <button type="submit">Submit reprint request</button>
-    </form>
-    <div class="table-wrap compact-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Requested</th>
-            <th>Status</th>
-            <th>Reviewer</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in requests_rows %}
-          <tr>
-            <td>{{ row.requested_at }}</td>
-            <td>{{ row.status|title }}</td>
-            <td>{{ row.reviewer_name or '-' }}</td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="3" class="empty-state">No reprint requests submitted yet.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
+    </article>
+  </div>
+
+  <aside class="dashboard-side">
+    <article class="section-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Card Status</p>
+          <h3>Identity summary</h3>
+        </div>
+      </div>
+      <div class="quick-stat-list">
+        <div class="quick-stat">
+          <span>Card generation</span>
+          <strong>{{ 'Issued' if student.id_card_generated_at else 'Pending' }}</strong>
+        </div>
+        <div class="quick-stat">
+          <span>QR code</span>
+          <strong>{% if student.qr_path %}Ready{% else %}Pending{% endif %}</strong>
+        </div>
+        <div class="quick-stat">
+          <span>Reprints approved</span>
+          <strong>{{ student.id_card_reprint_count }}</strong>
+        </div>
+      </div>
+      <div class="action-row">
+        <form method="post" action="{{ url_for('generate_id_card') }}">
+          <button type="submit">{{ 'Refresh digital card' if student.id_card_generated_at else 'Generate first ID card' }}</button>
+        </form>
+        {% if student.id_card_generated_at %}
+        <a class="button-link button-secondary" href="{{ url_for('print_id_card', student_id=student.id, v='smart-campus-8') }}" target="_blank">Print ID card</a>
+        {% endif %}
+      </div>
+      <p class="muted-line">First generation is free. Approved reprints reuse the same QR code.</p>
+    </article>
+
+    <article class="section-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Student Info</p>
+          <h3>Quick identity view</h3>
+        </div>
+      </div>
+      <div class="profile-panel">
+        <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="profile-photo profile-photo-large">
+        <div>
+          <strong>{{ student.full_name }}</strong>
+          <p>{{ student.matric_number }}</p>
+          <p>{{ student.department_name }}</p>
+          <p>{{ student.phone }}</p>
+        </div>
+      </div>
+    </article>
+  </aside>
 </section>
 {% else %}
-<section class="hero-card">
-  <div>
-    <p class="eyebrow">Approval queue</p>
-    <h2>Review student ID card reprint requests for the departments you can manage.</h2>
-  </div>
-</section>
-
 <section class="section-card">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Approval Queue</p>
+      <h3>Review student ID card reprint requests</h3>
+    </div>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>

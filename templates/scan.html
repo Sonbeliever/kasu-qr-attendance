@@ -1,135 +1,178 @@
 {% extends "base.html" %}
 
 {% block title %}{{ app_name }} | Attendance Scanner{% endblock %}
+{% block page_label %}Attendance Operations{% endblock %}
+{% block page_heading %}Start Attendance{% endblock %}
+{% block page_description %}Create a session, scan student QR codes, and monitor active attendance activity from one workflow.{% endblock %}
+{% block page_tools %}
+  <a class="button-link button-secondary" href="{{ url_for('history', department_id=selected_department_id) }}">Open Reports</a>
+{% endblock %}
 
 {% block content %}
-<section class="hero-card">
-  <div>
-    <p class="eyebrow">Attendance operations</p>
-    <h2>Start a session, scan student QR codes, and keep duplicate entries out.</h2>
+<section class="process-strip">
+  <div class="process-step is-active">
+    <span>1</span>
+    <div>
+      <strong>Session setup</strong>
+      <p>Choose department, type, and course session.</p>
+    </div>
   </div>
-  <div class="hero-actions">
-    <a class="button-link button-secondary" href="{{ url_for('history', department_id=selected_department_id) }}">Open reports</a>
+  <div class="process-step {{ 'is-active' if active_session else '' }}">
+    <span>2</span>
+    <div>
+      <strong>Scan students</strong>
+      <p>Use the QR camera to mark attendance without duplicates.</p>
+    </div>
+  </div>
+  <div class="process-step">
+    <span>3</span>
+    <div>
+      <strong>Review summary</strong>
+      <p>Close the session and export the report when done.</p>
+    </div>
   </div>
 </section>
 
-<section class="grid-two">
-  <article class="section-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Session control</p>
-        <h3>Start attendance session</h3>
+<section class="dashboard-board">
+  <div class="dashboard-main">
+    <article class="section-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Session Information</p>
+          <h3>Start a new attendance session</h3>
+        </div>
       </div>
-    </div>
-    <form method="post" action="{{ url_for('start_session') }}" class="form-grid">
-      {% if current_user.role == 'super_admin' %}
-      <label>
-        Department
-        <select name="department_id" required>
-          <option value="">Select department</option>
-          {% for department in departments %}
-          <option value="{{ department.id }}" {{ 'selected' if department.id == selected_department_id else '' }}>{{ department.name }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      {% endif %}
-      <label>
-        Session type
-        <select name="session_type" id="session_type">
-          <option value="general">General</option>
-          <option value="course">Course-specific</option>
-        </select>
-      </label>
-      <label id="course_select_wrap">
-        Course
-        <select name="course_id">
-          <option value="">Select course</option>
-          {% for course in courses %}
-          <option value="{{ course.id }}">{{ course.code }} - {{ course.title }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="span-2">
-        Session title
-        <input type="text" name="title" placeholder="Optional custom title">
-      </label>
-      <button type="submit">Start session</button>
-    </form>
-  </article>
-
-  <article class="section-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Current session</p>
-        <h3>Active scanner target</h3>
-      </div>
-    </div>
-    {% if active_session %}
-    <div class="status-panel">
-      <strong>{{ active_session.title }}</strong>
-      <p>{{ active_session.department_name }}</p>
-      <p>{{ active_session.session_type|title }} {% if active_session.course_code %}| {{ active_session.course_code }}{% endif %}</p>
-      <p>{{ active_session.session_date }} at {{ active_session.start_time }}</p>
-      <form method="post" action="{{ url_for('close_session', session_id=active_session.id) }}">
-        <button type="submit" class="button-danger">Close session</button>
+      <form method="post" action="{{ url_for('start_session') }}" class="form-grid">
+        {% if current_user.role == 'super_admin' %}
+        <label>
+          Department
+          <select name="department_id" required>
+            <option value="">Select department</option>
+            {% for department in departments %}
+            <option value="{{ department.id }}" {{ 'selected' if department.id == selected_department_id else '' }}>{{ department.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <label>
+          Session type
+          <select name="session_type" id="session_type">
+            <option value="general">General</option>
+            <option value="course">Course-specific</option>
+          </select>
+        </label>
+        <label id="course_select_wrap">
+          Course
+          <select name="course_id">
+            <option value="">Select course</option>
+            {% for course in courses %}
+            <option value="{{ course.id }}">{{ course.code }} - {{ course.title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="span-2">
+          Session title
+          <input type="text" name="title" placeholder="Optional custom title">
+        </label>
+        <button type="submit">Start session</button>
       </form>
-    </div>
-    {% else %}
-    <p class="empty-state">No active session for this department yet.</p>
-    {% endif %}
-  </article>
-</section>
+    </article>
 
-<section class="grid-two">
-  <article class="section-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Scanner</p>
-        <h3>Mark attendance with QR</h3>
-      </div>
-    </div>
-    {% if active_session %}
-    <div id="reader" class="scanner-box"></div>
-    <div id="scan-status" class="result-box">Camera ready. Scan the student QR code.</div>
-    {% else %}
-    <p class="empty-state">Start a session before opening the scanner.</p>
-    {% endif %}
-  </article>
+    <div class="grid-two dashboard-lower-grid">
+      <article class="section-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Active Session</p>
+            <h3>Current scanner target</h3>
+          </div>
+        </div>
+        {% if active_session %}
+        <div class="status-panel status-panel-strong">
+          <strong>{{ active_session.title }}</strong>
+          <p>{{ active_session.department_name }}</p>
+          <p>{{ active_session.session_type|title }} {% if active_session.course_code %}| {{ active_session.course_code }}{% endif %}</p>
+          <p>{{ active_session.session_date }} at {{ active_session.start_time }}</p>
+          <form method="post" action="{{ url_for('close_session', session_id=active_session.id) }}">
+            <button type="submit" class="button-danger">Close session</button>
+          </form>
+        </div>
+        {% else %}
+        <p class="empty-state">No active session for this department yet.</p>
+        {% endif %}
+      </article>
 
-  <article class="section-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Recent sessions</p>
-        <h3>Attendance history snapshot</h3>
+      <article class="section-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Recent Sessions</p>
+            <h3>Attendance history snapshot</h3>
+          </div>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Department</th>
+                <th>Type</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for session_row in recent_sessions %}
+              <tr>
+                <td>{{ session_row.title }}</td>
+                <td>{{ session_row.department_name }}</td>
+                <td>{{ session_row.session_type|title }}</td>
+                <td>{{ session_row.session_date }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="empty-state">No sessions recorded yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <aside class="dashboard-side">
+    <article class="section-card scanner-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Scan Students</p>
+          <h3>Mark attendance with QR</h3>
+        </div>
       </div>
-    </div>
-    <div class="table-wrap compact-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Department</th>
-            <th>Type</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for session_row in recent_sessions %}
-          <tr>
-            <td>{{ session_row.title }}</td>
-            <td>{{ session_row.department_name }}</td>
-            <td>{{ session_row.session_type|title }}</td>
-            <td>{{ session_row.session_date }}</td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="4" class="empty-state">No sessions recorded yet.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </article>
+      {% if active_session %}
+      <div id="reader" class="scanner-box"></div>
+      <div id="scan-status" class="result-box">Camera ready. Scan the student QR code.</div>
+      {% else %}
+      <p class="empty-state">Start a session before opening the scanner.</p>
+      {% endif %}
+    </article>
+
+    <article class="section-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Scan Guide</p>
+          <h3>What happens next</h3>
+        </div>
+      </div>
+      <div class="mini-card-list">
+        <div class="mini-card">
+          <strong>Duplicate protection</strong>
+          <span>Each student can only be marked once in the same session.</span>
+        </div>
+        <div class="mini-card">
+          <strong>QR identity</strong>
+          <span>The same QR code is reused for attendance and ID card verification.</span>
+        </div>
+      </div>
+    </article>
+  </aside>
 </section>
 
 {% if active_session %}

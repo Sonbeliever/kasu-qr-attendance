@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 
 {% block title %}{{ app_name }} | My Attendance{% endblock %}
+{% block page_label %}Student Attendance{% endblock %}
+{% block page_heading %}My Attendance{% endblock %}
+{% block page_description %}Review your attendance history, course performance, and exam eligibility from one organized page.{% endblock %}
+{% block page_tools %}
+  <a class="button-link button-secondary" href="{{ url_for('id_card') }}">Open ID Card</a>
+{% endblock %}
 
 {% block content %}
 <section class="hero-card">

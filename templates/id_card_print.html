@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>{{ student.full_name }} | ID Card</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=smart-campus-2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version or 'smart-campus-8') }}">
 </head>
 <body class="print-page">
   <main class="print-wrap">
@@ -15,40 +18,11 @@
         <button type="button" class="print-mode-btn" data-print-mode="back">Back Only</button>
       </div>
     </section>
+    <p class="print-hint">For full-color printing, enable background graphics in your browser print dialog.</p>
 
     <div class="id-card-stack">
-      <div class="id-card-face id-card-front print-card">
-        <div class="id-front-top">KADUNA STATE UNIVERSITY</div>
-        <div class="id-front-body">
-          <div class="id-front-logo-wrap">
-            <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="KASU logo" class="id-front-logo">
-          </div>
-          <div class="id-card-body">
-            <div class="id-meta">
-              <p><strong>Name:</strong> {{ student.full_name }}</p>
-              <p><strong>Reg Number:</strong> {{ student.matric_number }}</p>
-              <p><strong>Department:</strong> {{ student.department_name }}</p>
-              <p><strong>Phone Number:</strong> {{ student.phone }}</p>
-            </div>
-            <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="id-photo">
-          </div>
-        </div>
-        <div class="id-front-bottom">STUDENT IDENTITY CARD</div>
-      </div>
-
-      <div class="id-card-face id-card-back print-card">
-        <h4>IMPORTANT</h4>
-        <p class="id-back-note">This card is property of Kaduna State University and must be returned if found.</p>
-        <p><strong>EMERGENCY CONTACT:</strong> Kaduna State University</p>
-        <p><strong>Address:</strong> Tafawa Balewa Way, Kaduna</p>
-        <div class="id-card-qr">
-          {% if student.qr_path %}
-          <img src="{{ media_url(student.qr_path) }}" alt="Student QR">
-          {% endif %}
-        </div>
-        <p class="id-scan-hint">Scan QR to verify identity</p>
-        <div class="id-signature-line">ID HOLDER SIGNATURE</div>
-      </div>
+      {% set print_mode = true %}
+      {% include "_id_card_faces.html" %}
     </div>
     <button onclick="window.print()" class="print-button">Print card</button>
   </main>

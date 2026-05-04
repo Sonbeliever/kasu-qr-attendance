@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} | Profile Edit{% endblock %}
+{% block page_label %}Account Profile{% endblock %}
+{% block page_heading %}Profile Edit{% endblock %}
+{% block page_description %}Update your account details and profile photo from one focused page.{% endblock %}
+{% block page_tools %}
+  <a class="button-link button-secondary" href="{{ url_for('home') }}">Back to dashboard</a>
+{% endblock %}
+
+{% block content %}
+<section class="profile-edit-layout">
+  <article class="section-card profile-edit-hero">
+    <img src="{{ profile_image_url(current_user.profile_photo) }}" alt="Profile photo" class="profile-edit-avatar">
+    <div>
+      <p class="eyebrow">{{ current_user.role.replace('_', ' ')|title }}</p>
+      <h2>{{ current_user.full_name }}</h2>
+      <p>{{ current_user.email }}</p>
+      {% if current_user.department_name %}
+      <p>{{ current_user.department_name }}</p>
+      {% endif %}
+      {% if current_user.matric_number %}
+      <p>{{ current_user.matric_number }}</p>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="section-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Profile Edite</p>
+        <h3>Manage account details</h3>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('profile_edit') }}" enctype="multipart/form-data" class="form-grid">
+      <label>
+        Full name
+        <input type="text" name="full_name" value="{{ current_user.full_name }}" required>
+      </label>
+      <label>
+        Email
+        <input type="email" name="email" value="{{ current_user.email }}" required>
+      </label>
+      <label>
+        Phone number
+        <input type="text" name="phone" value="{{ current_user.phone }}" required>
+      </label>
+      <label>
+        Replace profile photo
+        <input type="file" name="profile_photo" accept=".png,.jpg,.jpeg,.webp">
+      </label>
+      <button type="submit">Save profile</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

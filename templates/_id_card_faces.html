@@ -1,0 +1,95 @@
+<div class="id-card-face id-card-front{% if print_mode %} print-card{% endif %}">
+  <div class="id-front-band id-front-band-top">KADUNA STATE UNIVERSITY</div>
+  <div class="id-front-surface">
+    <div class="id-front-watermark" aria-hidden="true"></div>
+    <div class="id-front-brand">
+      <div class="id-front-logo-wrap">
+        <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="KASU logo" class="id-front-logo">
+      </div>
+      <div class="id-front-brand-copy">
+        <strong>Kaduna State University</strong>
+        <span>Tafawa Balewa Way, Kaduna</span>
+        <small>Official student identification</small>
+      </div>
+    </div>
+
+    <div class="id-front-main">
+      <div class="id-front-details">
+        <div class="id-info-row">
+          <span>Student Name</span>
+          <strong>{{ student.full_name }}</strong>
+        </div>
+        <div class="id-info-row">
+          <span>Registration Number</span>
+          <strong>{{ student.matric_number }}</strong>
+        </div>
+        <div class="id-info-row">
+          <span>Department</span>
+          <strong>{{ student.department_name }}</strong>
+        </div>
+        <div class="id-info-row">
+          <span>Phone Number</span>
+          <strong>{{ student.phone }}</strong>
+        </div>
+      </div>
+
+      <div class="id-front-photo-panel">
+        <img src="{{ profile_image_url(student.profile_photo) }}" alt="Profile photo" class="id-photo">
+      </div>
+    </div>
+
+    <div class="id-front-meta">
+      <span>Valid for campus verification</span>
+      <span>{{ student.department_name }}</span>
+    </div>
+  </div>
+  <div class="id-front-band id-front-band-bottom">STUDENT IDENTITY CARD</div>
+</div>
+
+<div class="id-card-face id-card-back{% if print_mode %} print-card{% endif %}">
+  <div class="id-back-shell">
+    <div class="id-back-heading">IMPORTANT</div>
+    <p class="id-back-copy">
+      This card remains the property of Kaduna State University. If found, please return it to the
+      nearest university office or notify the student's department.
+    </p>
+
+    <div class="id-back-contact-grid">
+      <div class="id-back-contact">
+        <span>OFFICE ADDRESS</span>
+        <strong>Tafawa Balewa Way, Kaduna State</strong>
+      </div>
+      <div class="id-back-contact">
+        <span>STUDENT RECORD</span>
+        <strong>{{ student.matric_number }}</strong>
+      </div>
+    </div>
+
+    <div class="id-back-bottom">
+      <div class="id-back-qr-panel">
+        <div class="id-back-seal" aria-hidden="true">
+          <img src="{{ url_for('static', filename='kasu.jpg') }}" alt="">
+        </div>
+        <div class="id-card-qr">
+          {% if student.qr_path %}
+          <img src="{{ media_url(student.qr_path) }}" alt="Student QR">
+          {% else %}
+          <span>QR pending</span>
+          {% endif %}
+        </div>
+        <p class="id-scan-hint">Scan QR to verify</p>
+      </div>
+
+      <div class="id-back-side">
+        <div class="id-back-emergency-note">
+          <span>EMERGENCY NOTICE</span>
+          <strong>Contact the department with the student record above for quick identification.</strong>
+        </div>
+
+        <div class="id-signature-box">
+          <span>ID HOLDER SIGNATURE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

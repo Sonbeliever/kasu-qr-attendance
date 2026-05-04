@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>{{ student.full_name }} | ID Card</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version or 'smart-campus-7') }}">
+</head>
+<body class="print-page">
+  <main class="print-wrap">
+    <section class="print-toolbar" aria-label="Print options">
+      <div class="print-mode-buttons">
+        <button type="button" class="print-mode-btn is-active" data-print-mode="both">Print Both</button>
+        <button type="button" class="print-mode-btn" data-print-mode="front">Front Only</button>
+        <button type="button" class="print-mode-btn" data-print-mode="back">Back Only</button>
+      </div>
+    </section>
+    <p class="print-hint">For full-color printing, enable background graphics in your browser print dialog.</p>
+
+    <div class="id-card-stack">
+      {% set print_mode = true %}
+      {% include "_id_card_faces.html" %}
+    </div>
+    <button onclick="window.print()" class="print-button">Print card</button>
+  </main>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const body = document.body;
+      const buttons = Array.from(document.querySelectorAll(".print-mode-btn"));
+
+      function setMode(mode) {
+        body.dataset.printMode = mode;
+        buttons.forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.printMode === mode);
+        });
+      }
+
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => setMode(btn.dataset.printMode || "both"));
+      });
+
+      setMode("both");
+    });
+  </script>
+</body>
+</html>

@@ -20,6 +20,7 @@ from flask import (
     flash,
     g,
     jsonify,
+    make_response,
     redirect,
     render_template,
     request,
@@ -264,6 +265,8 @@ def table_has_column(conn: sqlite3.Connection, table_name: str, column_name: str
 
 
 def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+    if not table_exists(conn, table_name):
+        return
     if not table_has_column(conn, table_name, column_name):
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
@@ -656,6 +659,7 @@ def inject_globals():
         "app_name": APP_NAME,
         "current_user": current_user(),
         "current_year": now_local().year,
+        "current_date_label": now_local().strftime("%d %b %Y"),
         "media_url": media_url,
         "profile_image_url": profile_image_url,
     }
@@ -1885,9 +1889,7 @@ def generate():
     return redirect(url_for("register"))
 
 
-@app.route("/profile/update", methods=["POST"])
-@login_required
-def update_profile():
+def save_current_profile(redirect_endpoint: str):
     user = current_user()
     full_name = normalize_text(request.form.get("full_name"))
     email = normalize_email(request.form.get("email"))
@@ -1896,7 +1898,7 @@ def update_profile():
 
     if not all([full_name, email, phone]):
         flash("Full name, email, and phone are required.", "error")
-        return redirect(url_for("home"))
+        return redirect(url_for(redirect_endpoint))
 
     conn = get_conn()
     existing = conn.execute(
@@ -1906,7 +1908,7 @@ def update_profile():
     if existing:
         conn.close()
         flash("Another account already uses that email address.", "error")
-        return redirect(url_for("home"))
+        return redirect(url_for(redirect_endpoint))
 
     profile_path = user["profile_photo"]
     if profile_photo and profile_photo.filename:
@@ -1915,7 +1917,7 @@ def update_profile():
         except ValueError as exc:
             conn.close()
             flash(str(exc), "error")
-            return redirect(url_for("home"))
+            return redirect(url_for(redirect_endpoint))
 
     conn.execute(
         """
@@ -1928,7 +1930,21 @@ def update_profile():
     conn.commit()
     conn.close()
     flash("Profile updated.", "success")
-    return redirect(url_for("home"))
+    return redirect(url_for(redirect_endpoint))
+
+
+@app.route("/profile/edit", methods=["GET", "POST"])
+@login_required
+def profile_edit():
+    if request.method == "POST":
+        return save_current_profile("profile_edit")
+    return render_template("profile_edit.html")
+
+
+@app.route("/profile/update", methods=["POST"])
+@login_required
+def update_profile():
+    return save_current_profile("profile_edit")
 
 
 @app.route("/departments/create", methods=["POST"])
@@ -2816,7 +2832,11 @@ def print_id_card(student_id: int):
     if not student["id_card_generated_at"] and current_user()["role"] == "student":
         flash("Generate your ID card first.", "error")
         return redirect(url_for("id_card"))
-    return render_template("id_card_print.html", student=student)
+    response = make_response(render_template("id_card_print.html", student=student, asset_version="smart-campus-8"))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route("/community")
